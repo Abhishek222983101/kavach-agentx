@@ -74,7 +74,7 @@ def create_app(*, reader_pool: asyncpg.Pool | None = None, writer_pool: asyncpg.
         for p in owned:
             await p.close()
 
-    app = FastAPI(title="Kavach mock store", version="1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Kavach mock store", version="1.0", lifespan=lifespan, docs_url="/docs" if cfg.env == "dev" else None, redoc_url=None)  # interactive docs only in dev
     app.state.rpool, app.state.wpool = reader_pool, writer_pool
     app.state.chaos = ChaosIn()
     for name, key in keys.items():

@@ -47,7 +47,7 @@ def create_app(*, service: TrustService | None = None, api_key: str | None = Non
         for o in owned:
             await (o.aclose() if hasattr(o, "aclose") else o.close())
 
-    app = FastAPI(title="Kavach trust service", version="1.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Kavach trust service", version="1.0", lifespan=lifespan, docs_url="/docs" if cfg.env == "dev" else None, redoc_url=None)  # interactive docs only in dev
     app.state.svc = service
 
     def auth(x_api_key: str = Header(default="")) -> None:
