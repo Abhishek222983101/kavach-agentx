@@ -31,7 +31,7 @@ confidence: medium
 | This repo | `~/kavach-agentx`: a fresh repo created on 11 Nov. Contains `app/llm.py` (provider fallback, 2 tests), `/health`, a Dockerfile (never built), the context kit, these docs. Nothing committed | `[OBSERVED]` |
 | Hardware | RTX 5050 Laptop 8 GB, driver 615.78.08; Arch Linux, KDE Wayland. PyTorch on this GPU not yet tested | `[OBSERVED]` / `[UNKNOWN]` |
 | Cached models | `google/muril-base-cased`, `abacusai/Smaug-AI-Image-Detector`, ECAPA ONNX, MiniLM in `~/.cache/huggingface/hub` | `[OBSERVED]` |
-| Twilio | Trial account `lynky-test`, balance about $13.69. Free units: WhatsApp 98/100 left, voice 0 left, SMS 100, email 3000 | `[OBSERVED]` (screenshot) |
+| Twilio | **Use Voight's upgraded account only** (sandbox `join silver-lion`, sender `whatsapp:+14155238886`, 2 verified numbers). The `lynky-test` trial seen earlier is office work and must not be used | `[CONFIRMED]` (owner, 11 Nov) |
 | Claude key | `sk-ant-usr-…` returned 401 from api.anthropic.com twice. Not usable until a base URL or a console key arrives | `[OBSERVED]` |
 | Gemini | Key from `~/ethglobal-mumbai/adx/.env` works on `gemini-3-flash-preview` (Hinglish reply 2.4 s); `gemini-2.5-flash` returned an HTTP error on this key | `[OBSERVED 11 Nov]` |
 | Groq | 2 keys work; `llama-3.3-70b-versatile` no longer listed; using `openai/gpt-oss-120b` (0.6 s). Also hosts `whisper-large-v3(-turbo)` and `llama-prompt-guard-2-22m/86m` | `[OBSERVED 11 Nov]` |

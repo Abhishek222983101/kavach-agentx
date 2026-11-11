@@ -10,7 +10,7 @@ Details, limits and gotchas: `SYSTEM-ARCHITECTURE.md` §12. Credentials are impo
 
 | Service | Purpose | Account owner | Env vars | Status |
 |---|---|---|---|---|
-| Twilio (WhatsApp sandbox, Voice) | Primary channel; alert call | Owner's firm (trial, about $13.69) | `TWILIO_*`, `ALERT_CALL_*` | 🟡 credentials imported from Voight; sandbox join code and webhook not set yet. Uses the account **Auth Token** (Voight's setup), not a separate API key `[OBSERVED]` |
+| Twilio (WhatsApp sandbox, Voice) | Primary channel; alert call | Owner, **Voight's upgraded account only** (`lynky-test` is office work: never use) | `TWILIO_*`, `ALERT_CALL_*` | 🟡 credentials imported from Voight; sandbox join code `silver-lion`; webhook not set yet; cost caps per D-14. Uses the account **Auth Token** (Voight's setup), not a separate API key `[OBSERVED]` |
 | Telegram Bot API | Channel + seller approvals | Team | `TELEGRAM_*` | 🟡 Voight's bot token imported; the bot is named for Voight, so create a new `@…kavach…bot` for branding (2 min) or accept the name |
 | Gmail SMTP | Emails | Team | `SMTP_*` | 🟡 Voight's Gmail app password imported (same password works for SMTP) |
 | Gemini | Main LLM | Owner (free tier, key from ETHGlobal `adx/.env`) | `GEMINI_*` | ✅ works on `gemini-3-flash-preview` (2.4 s); `gemini-2.5-flash` errored on this key `[OBSERVED 2026-11-11]` |
@@ -19,5 +19,5 @@ Details, limits and gotchas: `SYSTEM-ARCHITECTURE.md` §12. Credentials are impo
 | Weights & Biases | Training evidence | Owner | `WANDB_*` | 🟡 key imported from Voight; project `kavach-guard` to be created on first run |
 | Vercel | Web host | Owner (CLI logged in) | `NEXT_PUBLIC_API_URL` | ⬜ |
 | Render | Backend host (free) | Owner (CLI logged in) | dashboard env | ⬜ |
-| Neon | Postgres | Owner | `DATABASE_URL_READER`, `DATABASE_URL_WRITER` | ⬜ project not created |
+| Neon | Postgres 18 | Owner (org `org-crimson-cloud-90064199`) | `DATABASE_URL` (owner), later `DATABASE_URL_READER`/`_WRITER` | ✅ project `kavach` (`purple-flower-81251350`, aws-ap-southeast-1) created and connected `[OBSERVED 2026-11-11]`; roles created in Phase 0 |
 | GitHub | Repo + keepalive Action | Abhishek222983101 (gh logged in) | — | 🟡 repo being created |

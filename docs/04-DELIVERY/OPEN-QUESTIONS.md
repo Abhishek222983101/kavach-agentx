@@ -20,7 +20,7 @@ last_updated: 2026-11-11
 | Q-10 | Who builds what? | Parallel work | Owner | **answered 2026-11-11:** the owner builds everything (solo lane + background GPU job) |
 | Q-11 | Final headline: "Sounds genuine. / Refund blocked." or "Polite message. / Fake refund."? | Landing hero | Owner | open |
 | Q-12 | Make the GitHub repo public now or at submission? | Judges need a public link | Owner | open (created private) |
-| Q-13 | Which Twilio account? Voight's credentials are a **different, upgraded ("Full") account** from the `lynky-test` trial ($13.69) in the screenshot. Its sandbox join code in Voight's docs is `join silver-lion` | Who pays; sandbox join code; trial limits | Owner | open |
+| Q-13 | Which Twilio account? | Who pays | Owner | **answered 2026-11-11:** Voight's account (sandbox `join silver-lion`). **Never touch `lynky-test`** (office account). Keep cost minimal (D-14) |
 | Q-14 | Telegram: reuse `@Voight21_bot` (renamed display, but the username stays "Voight21") or create a Kavach bot? Setting our webhook stops Voight's local polling until `deleteWebhook` | Judges see the username in the link/QR | Owner | open (recommend new bot) |
 
 ## Contradictions

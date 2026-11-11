@@ -23,3 +23,4 @@ The full table with reasons is in `../03-SYSTEM/SYSTEM-ARCHITECTURE.md` §4. Sum
 | D-11 | 2026-11-11 | Four core docs, not twelve | Agent (time) |
 | D-12 | 2026-11-11 | Serve a distilled student guard (fits 512 MB); report teacher + student | Agent |
 | D-13 | 2026-11-11 | UI = Tessera landing and design system + ETHGlobal light/dark toggle | Owner |
+| D-14 | 2026-11-11 | Twilio = Voight's account only; cost caps: sandbox WhatsApp only (no paid sender), outbound replies only inside the 24 h window, per-user 15 msgs/day, global 300 outbound/day, alert calls dry-run by default and ≤ 3/day to the one verified number, 35 s limit; daily spend check in the console | Owner: "cost properly optimised", don't touch lynky |

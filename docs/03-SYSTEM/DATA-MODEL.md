@@ -6,7 +6,7 @@ last_updated: 2026-11-11
 
 # Data model and backend schema
 
-Postgres 16. Money in **paise** (`bigint`). Times `timestamptz`. All data is fake (hackathon rule).
+Postgres 18 (Neon). Money in **paise** (`bigint`). Times `timestamptz`. All data is fake (hackathon rule).
 
 ## Store tables (owned by `store`; writer: `kavach_writer`, reader: `kavach_reader`)
 | Table | Fields (type, required, default) | Indexes / constraints |
