@@ -156,6 +156,7 @@ WHY: dict[str, dict[Lang, str]] = {
     "monetary": {"en": "the amount is more than what can be refunded on this order", "hinglish": "amount is order par refund ho sakne wali rakam se zyada hai", "hi": "राशि इस ऑर्डर पर वापसी योग्य रकम से ज़्यादा है"},
     "duplicate": {"en": "a refund was already made on this order", "hinglish": "is order par refund pehle hi ho chuka hai", "hi": "इस ऑर्डर पर रिफ़ंड पहले ही हो चुका है"},
     "eligibility": {"en": "this item can't be returned (food and flowers are non-returnable)", "hinglish": "ye item return nahi hota (khane ka saamaan aur phool wapas nahi hote)", "hi": "यह सामान वापस नहीं होता (खाने का सामान और फूल वापस नहीं होते)"},
+    "evidence_photo": {"en": "the photo doesn't show a damaged {item} (the photo check saw something else)", "hinglish": "photo mein toota {item} nahi dikh raha (photo check ko kuch aur dikha)", "hi": "फ़ोटो में टूटा {item} नहीं दिख रहा (फ़ोटो जाँच को कुछ और दिखा)"},
     "evidence": {"en": "a clear photo of the item is needed", "hinglish": "item ki saaf photo chahiye", "hi": "सामान की साफ़ फ़ोटो चाहिए"},
     "authority": {"en": "I can't act on \"the owner said so\": only the written policy counts", "hinglish": "\"owner ne bola\" par main kuch nahi kar sakta — sirf likhi hui policy maani jaati hai", "hi": "\"मालिक ने कहा\" पर मैं कुछ नहीं कर सकता — सिर्फ़ लिखी हुई नीति मानी जाती है"},
     "policy": {"en": "that's not what our policy says", "hinglish": "hamari policy aisa nahi kehti", "hi": "हमारी नीति ऐसा नहीं कहती"},

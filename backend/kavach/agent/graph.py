@@ -30,7 +30,7 @@ from kavach.common.contracts import Caller, Claim, Decision, ExecuteIn, Proposal
 from kavach.events import EventBus
 from kavach.store.client import NotFound, StoreClient, StoreUnavailable
 from kavach.trust.policy import search as policy_search
-from kavach.trust.rules import required_for
+from kavach.trust.rules import injection_flags, required_for
 
 WRITE_INTENTS = {"refund": WriteTool.issue_refund, "return": WriteTool.create_return_pickup,
                  "change_address": WriteTool.update_address, "cancel": WriteTool.cancel_order}
@@ -347,7 +347,8 @@ def build(deps: Deps, checkpointer: Any):
         # a refund with no reason: ask what happened (fixed numbered options, nothing invented)
         # Only for ordinary messages: anything with a claim of authority, pressure, a stated amount or a policy claim
         # goes straight to the verifier so it is checked and recorded, not softened into a question.
-        risky = bool((s.get("guard") or {}).get("tags")) or bool(u.customer_assertions) or u.amount_rupees is not None
+        risky = (bool((s.get("guard") or {}).get("tags")) or bool(u.customer_assertions) or u.amount_rupees is not None
+                 or bool(injection_flags(order.get("note") or "")))          # a hidden instruction in the record itself
         if u.intent == "refund" and u.reason is None and mine and order["status"] == "delivered" and not s.get("media") and not risky:
             return reply(R.say("choose_reason", lang, item=order["item"], oid=order["id"]),
                          pending={"kind": "choose_reason", "order_id": order["id"], "u": u.model_dump()})
@@ -478,7 +479,11 @@ def build(deps: Deps, checkpointer: Any):
             days = m.group(1) if m else "?"
         order_of = ["ownership", "authority", "temporal", "policy", "duplicate", "monetary", "eligibility", "evidence", "state", "frequency", "channel_identity"]
         keys = [k for k in order_of if k in v.reasons or f"missing_{k}" in v.reasons][:2] or ["policy"]
-        why = "; ".join(R.phrase(R.WHY, k, lang, window=7, days=days) for k in keys)
+        if "ownership" in keys:
+            keys = ["ownership"]                         # not their order: nothing else about it is their business
+        if "evidence" in keys and s.get("photos"):
+            keys = ["evidence_photo" if k == "evidence" else k for k in keys]   # a photo came, it just doesn't show the problem
+        why = "; ".join(R.phrase(R.WHY, k, lang, window=7, days=days, item=order["item"]) for k in keys)
         clause = ""
         if any(k in keys for k in ("temporal", "policy", "eligibility")):
             want = 3 if "eligibility" in keys else (2 if args.get("reason") in ("damaged", "wrong_item") else CLAUSE_FOR.get(tool, 1))
