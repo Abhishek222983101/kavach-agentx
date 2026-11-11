@@ -15,7 +15,8 @@ import time
 import asyncpg
 import pytest
 
-from kavach.db import migrate as mig
+os.environ["CALLS_ENABLED"] = "0"          # tests must never be able to ring a real phone, whatever .env says
+from kavach.db import migrate as mig  # noqa: E402
 from kavach.db.pool import create_pool
 
 # Tests must never reach real Twilio/Telegram/SMTP: force every real channel off (fakes are injected per test).

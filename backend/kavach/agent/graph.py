@@ -84,6 +84,7 @@ class Deps:
     bus: EventBus
     send: Send
     notify_seller: NotifySeller
+    on_block: Callable[[dict, str, int | None], Awaitable[None]] | None = None   # alert calls: burst detection
 
 
 def _lang(state: TurnState) -> str:
@@ -288,6 +289,8 @@ def build(deps: Deps, checkpointer: Any):
             await deps.notify_seller({"kind": "injection", "conv": conv, "trace_id": trace,
                                       "summary": f"{conv.get('name')} sent instructions aimed at the agent: \"{s['text'][:160]}\""})
             await bus.emit(trace, "route", "fail", None, verdict="BLOCK", reasons=["instruction_to_agent"])
+            if deps.on_block is not None:
+                await deps.on_block(conv, trace, u.order_id)
             return reply({"en": "I can't follow instructions like that. I only act on your orders and our written policy. If you need something specific, tell me the order and the problem.",
                           "hinglish": "Aise instructions main follow nahi karta. Main sirf aapke orders aur hamari likhi policy ke hisaab se kaam karta hoon. Kisi order mein dikkat hai to order aur problem bataiye.",
                           "hi": "ऐसे निर्देश मैं नहीं मानता। मैं सिर्फ़ आपके ऑर्डर और हमारी लिखी नीति के हिसाब से काम करता हूँ। किसी ऑर्डर में दिक़्क़त हो तो ऑर्डर और समस्या बताइए।"}.get(lang, ""),
@@ -447,13 +450,15 @@ def build(deps: Deps, checkpointer: Any):
                 await deps.notify_seller({"kind": "courier_down", "conv": conv, "trace_id": trace,
                                           "summary": f"Could not verify {tool.value} on order {order['id']}: a source is down."})
                 return {"reply": R.say("courier_down", lang), "outcome": outcome}
-            await start_approval(v.approval_id, trace, conv, tool.value, args, order, lang)
+            await start_approval(v.approval_id, trace, conv, tool.value, args, order, lang, v.reasons)
             key = next((r for r in v.reasons if r in R.ESC_WHY), "guard_flag")
             why = R.phrase(R.ESC_WHY, key, lang, limit=R.rs(v.risk.auto_limit_paise or 50000))
             what = R.phrase(R.WHAT, tool.value, lang, amount=R.rs(args.get("amount_paise", 0)))
             return {"reply": R.say("escalated", lang, what=what, oid=order["id"], why=why) + R.records_line(order, s.get("shipment"), lang),
                     "outcome": outcome}
         # BLOCK: explain the most important reasons in plain words, quoting the real policy when relevant
+        if deps.on_block is not None:
+            await deps.on_block(conv, trace, order.get("id"))
         res = {r.kind.value: r for r in v.results}
         days = None
         if "temporal" in res:
@@ -537,12 +542,13 @@ def build(deps: Deps, checkpointer: Any):
     ap.add_edge("finish", END)
     approvals = ap.compile(checkpointer=checkpointer)
 
-    async def start_approval(approval_id: int, trace: str, conv: dict, tool: str, args: dict, order: dict, lang: str) -> None:
+    async def start_approval(approval_id: int, trace: str, conv: dict, tool: str, args: dict, order: dict, lang: str,
+                             reasons: list[str] | None = None) -> None:
         cfg = {"configurable": {"thread_id": f"approval-{approval_id}"}}
         await approvals.ainvoke({"approval_id": approval_id, "trace_id": trace, "conv": conv, "tool": tool, "args": args,
                                  "order": {"id": order["id"], "item": order["item"], "cod": order.get("cod", False)}, "lang": lang}, cfg)
         await deps.notify_seller({"kind": "approval", "approval_id": approval_id, "conv": conv, "trace_id": trace,
-                                  "tool": tool, "args": args, "order": {"id": order["id"], "item": order["item"]}})
+                                  "tool": tool, "args": args, "order": {"id": order["id"], "item": order["item"]}, "reasons": reasons or []})
 
     return conversation, approvals
 

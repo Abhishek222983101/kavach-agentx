@@ -35,6 +35,7 @@ class Outbound:
         self.mailer = None
         self._mail_tasks: set = set()
         self._carded: dict[int, set[str]] = {}               # approval id -> seller channels that got the card
+        self.calls = None                                    # SellerCalls (alert calls), set at startup when configured
 
     async def send(self, conv: dict, text: str, trace_id: str | None = None) -> None:
         await record_message(self.pool, conv, "out", text)
@@ -88,6 +89,8 @@ class Outbound:
                         self._carded.setdefault(int(card["approval_id"]), set()).add(channel)
                 except Exception as e:  # noqa: BLE001
                     log.warning("seller notify failed on %s: %s", channel, type(e).__name__)
+        if self.calls is not None:
+            await self.calls.on_card(card)
 
     async def broadcast_seller(self, text: str, exclude: str | None = None, approval_id: int | None = None) -> None:
         """Tell the seller's other channels that something was already handled (first decision wins).

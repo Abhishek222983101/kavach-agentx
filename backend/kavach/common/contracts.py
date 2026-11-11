@@ -148,6 +148,6 @@ class ExecuteOut(Strict):
 
 class Decision(Strict):
     decision: Literal["approve", "reject"]
-    decided_via: Literal["console", "whatsapp", "telegram", "test"]
+    decided_via: Literal["console", "whatsapp", "telegram", "phone", "test"]
     edited_amount_paise: int | None = Field(default=None, gt=0, le=10_000_000)
     note: str = Field(default="", max_length=300)

@@ -99,6 +99,8 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         st.seller_pin = pin
         st.bg_tasks = set()
         await channels.setup(app)
+        from kavach.gateway import calls as calls_mod
+        await calls_mod.setup(app)
         for hook in st.startup_hooks:          # tests can inject fakes after setup
             await hook(app)
         yield
@@ -113,6 +115,8 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
     app.state.startup_hooks = []
     app.include_router(wa_routes.router)
     app.include_router(tg_routes.router)
+    from kavach.gateway.calls import router as calls_router
+    app.include_router(calls_router)
     origins = [o.strip() for o in os.getenv("WEB_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
                        allow_headers=["Content-Type", "X-Session", "X-Seller-Pin"], max_age=600)
@@ -248,6 +252,12 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         s = await app.state.store.settings()
         keep = ("kill_switch", "auto_limit_paise", "hard_cap_paise", "window_days", "freq_window_days")
         return {k: s.get(k) for k in keep}
+
+    @app.get("/api/seller/calls")
+    async def seller_calls():
+        """Public status of phone alerts (number masked). Only the seller's own phone can ever be called."""
+        calls = getattr(app.state, "calls", None)
+        return await calls.view() if calls else {"enabled": False}
 
     @app.get("/api/seller/feed")
     async def seller_feed(seller: bool = Depends(is_seller)):
