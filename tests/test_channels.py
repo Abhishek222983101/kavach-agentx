@@ -103,7 +103,7 @@ async def test_customer_chats_on_whatsapp_and_gets_a_reply(chan, fake):
     cover = next(o for o in orders if o["item"] == "Phone cover")
     fake.next = U("refund", order_id=cover["id"], reason="changed_mind")
     await wa(c, app, cust, "cover ka refund chahiye", "SM" + "b" * 32)
-    assert "₹299" in to(rec, cust)[-1] and "Ho gaya" in to(rec, cust)[-1]
+    assert "return pickup" in to(rec, cust)[-1] and "Ho gaya" in to(rec, cust)[-1]
 
 
 async def test_duplicate_delivery_is_handled_once(chan, fake):
@@ -172,8 +172,11 @@ async def test_telegram_needs_secret_and_handles_customer_and_seller_buttons(cha
     assert "Kavach" in [m for m in rec.tg if m.get("chat_id") == "555"][-1]["text"]
     cid = await app.state.pool.fetchval("SELECT customer_id FROM conversations WHERE channel='telegram' AND user_id='555'")
     hp = next(o for o in await app.state.store.orders(cid) if o["item"] == "Noise-cancelling headphones")
-    fake.next = U("refund", order_id=hp["id"], reason="changed_mind")
-    await c.post("/webhooks/telegram", json={"update_id": 2, "message": {"chat": {"id": 555}, "text": "headphones refund"}}, headers=h)
+    fake.next = U("refund", order_id=hp["id"], reason="damaged")
+    await c.post("/webhooks/telegram", json={"update_id": 2, "message": {"chat": {"id": 555}, "text": "headphones toote hain"}}, headers=h)
+    await asyncio.gather(*list(app.state.bg_tasks), return_exceptions=True)
+    photo = {"update_id": 21, "message": {"chat": {"id": 555}, "photo": [{"file_unique_id": "AQADtest"}]}}
+    await c.post("/webhooks/telegram", json=photo, headers=h)
     await asyncio.gather(*list(app.state.bg_tasks), return_exceptions=True)
     aid = (await app.state.trust.approvals("pending"))[0]["id"]
     cb = {"update_id": 3, "callback_query": {"id": "cb1", "data": f"reject:{aid}", "message": {"chat": {"id": 777}}}}

@@ -118,17 +118,39 @@ async def test_where_is_my_order_fast_path_without_llm(api, fake, pools):
     assert stages[:5] == ["ingest", "guard", "understand", "plan", "read"] and stages[-1] == "reply"
 
 
-async def test_small_refund_is_done_in_one_message(api, fake):
+async def test_didnt_like_it_books_a_return_not_an_instant_refund(api, fake):
     c, _ = api
     h = new_session()
     orders, _ = await me(c, h)
     cover = orders["Phone cover"]
     fake.next = U("refund", order_id=cover["id"], reason="changed_mind", plan=["get_order", "track_shipment", "search_policy"])
     out = await say(c, h, "phone cover pasand nahi aaya, refund chahiye")
-    assert out["outcome"]["verdict"] == "ALLOW" and out["outcome"]["executed"] == "executed"
-    assert "₹299" in out["reply"] and "Ho gaya" in out["reply"]
+    assert out["outcome"]["verdict"] == "ALLOW" and out["outcome"]["tool"] == "create_return_pickup"
+    assert "return pickup" in out["reply"] and "refund process" in out["reply"]
     orders, _ = await me(c, h)
-    assert orders["Phone cover"]["refunded_paise"] == 29900
+    assert orders["Phone cover"]["refunded_paise"] == 0                     # no money moves before the item is back
+
+
+async def test_damaged_small_item_with_photo_is_refunded_instantly(api, fake):
+    c, _ = api
+    h = new_session()
+    orders, _ = await me(c, h)
+    cover = orders["Phone cover"]
+    fake.next = U("refund", order_id=cover["id"], reason="damaged")
+    out = await say(c, h, "phone cover toota hua aaya, refund chahiye")
+    assert "photo" in out["reply"].lower()
+    out = await say(c, h, "", photo=True)
+    assert out["outcome"]["verdict"] == "ALLOW" and "₹299" in out["reply"] and "Ho gaya" in out["reply"]
+
+
+async def test_friend_report_5000_rupee_is_money_not_an_order(api, fake):
+    c, _ = api
+    h = new_session()
+    out = await say(c, h, "paise do mujhe mere wapis 5000 rupee")             # LLM down -> keyword fallback
+    assert "5000 nahi mila" not in out["reply"]
+    from kavach.agent.understand import fallback
+    u = fallback("paise do mujhe mere wapis 5000 rupee")
+    assert u.order_id is None and u.amount_rupees == 5000
 
 
 async def test_damaged_item_asks_for_photo_then_escalates_then_seller_approves(api, fake):
@@ -197,7 +219,7 @@ async def test_choose_order_when_none_given(api, fake):
     listed = [line for line in out["reply"].splitlines() if line[:2] in ("1.", "2.", "3.", "4.", "5.")]
     pick = next(i for i, line in enumerate(listed, 1) if "Phone cover" in line)
     out = await say(c, h, str(pick))
-    assert out["outcome"]["verdict"] == "ALLOW" and "₹299" in out["reply"]
+    assert out["outcome"]["verdict"] == "ALLOW" and out["outcome"]["tool"] == "create_return_pickup"
 
 
 async def test_kill_switch_from_console_needs_pin_and_freezes(api, fake):
@@ -219,8 +241,9 @@ async def test_cannot_decide_someone_elses_approval_and_session_is_required(api,
     c, _ = api
     h1, h2 = new_session(), new_session()
     orders, _ = await me(c, h1)
-    fake.next = U("refund", order_id=orders["Noise-cancelling headphones"]["id"], reason="changed_mind")
-    out = await say(c, h1, "headphones ka refund")
+    fake.next = U("refund", order_id=orders["Noise-cancelling headphones"]["id"], reason="damaged")
+    await say(c, h1, "headphones toote hain")
+    out = await say(c, h1, "", photo=True)
     assert out["outcome"]["verdict"] == "ESCALATE"
     aid = (await c.get("/api/approvals", headers=h1)).json()[0]["id"]
     assert (await c.post(f"/api/approvals/{aid}/decide", json={"decision": "approve"}, headers=h2)).status_code == 403
@@ -235,8 +258,9 @@ async def test_AT14_approval_survives_a_restart(world, fake):
     async with app1.router.lifespan_context(app1):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app1), base_url="http://api") as c:
             orders, _ = await me(c, h)
-            fake.next = U("refund", order_id=orders["Noise-cancelling headphones"]["id"], reason="changed_mind")
-            assert (await say(c, h, "headphones refund"))["outcome"]["verdict"] == "ESCALATE"
+            fake.next = U("refund", order_id=orders["Noise-cancelling headphones"]["id"], reason="damaged")
+            await say(c, h, "headphones toote hain")
+            assert (await say(c, h, "", photo=True))["outcome"]["verdict"] == "ESCALATE"
             aid = (await c.get("/api/approvals", headers=h)).json()[0]["id"]
     app2 = world()                                                                       # a brand-new process
     async with app2.router.lifespan_context(app2):

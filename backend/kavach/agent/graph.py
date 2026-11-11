@@ -283,6 +283,20 @@ def build(deps: Deps, checkpointer: Any):
 
         # write intents → build a proposal
         tool = WRITE_INTENTS[u.intent]
+        converted = False
+        # Seller policy, like real Indian e-commerce: an instant refund needs a damaged or wrong item (with a photo).
+        # "Didn't like it" / no reason -> book a return pickup, refund after the item is back.
+        # "Never received it" on a delivered order -> the seller investigates.
+        if tool is WriteTool.issue_refund and u.reason not in ("damaged", "wrong_item"):
+            if u.reason == "not_delivered" and (s.get("shipment") or {}).get("status") == "delivered" and mine:
+                await deps.notify_seller({"kind": "dispute", "conv": conv, "trace_id": trace,
+                                          "summary": f"{conv.get('name')} says order {order['id']} ({order['item']}) never arrived; courier shows delivered."})
+                return reply({"en": f"Courier records show order {order['id']} as delivered. I've asked the seller to check with the courier; they'll get back to you.",
+                              "hinglish": f"Courier ke record mein order {order['id']} delivered dikh raha hai. Maine seller ko courier se check karne ko bol diya hai, woh aapko batayenge.",
+                              "hi": f"कूरियर के रिकॉर्ड में ऑर्डर {order['id']} डिलीवर दिख रहा है। मैंने विक्रेता से कूरियर से जाँच करने को कहा है, वे आपको बताएँगे।"}.get(lang, ""),
+                             outcome={"verdict": "ESCALATE", "reasons": ["delivery_dispute"]})
+            if u.reason != "not_delivered":
+                tool, converted = WriteTool.create_return_pickup, True
         if tool is WriteTool.update_address and not u.new_address:
             return reply({"en": "Please send the new full address.", "hinglish": "Naya poora address bhej dijiye.",
                           "hi": "नया पूरा पता भेज दीजिए।"}.get(lang, "Naya poora address bhej dijiye."),
@@ -321,7 +335,7 @@ def build(deps: Deps, checkpointer: Any):
                        claims=[r.model_dump(mode="json") for r in v.results], verdict=v.verdict.value)
         await bus.emit(trace, "route", {"ALLOW": "ok", "ESCALATE": "warn", "BLOCK": "fail"}[v.verdict.value], None,
                        verdict=v.verdict.value, reasons=v.reasons, approval_id=v.approval_id, risk=v.risk.model_dump())
-        return await _route(s, tool, args, order, v, lang)
+        return await _route({**s, "converted_refund": converted}, tool, args, order, v, lang)
 
     async def plan_again(s: TurnState, u: Understanding) -> dict:
         """The order was inferred after planning (e.g. the only parcel in transit): read it, then act."""
@@ -339,7 +353,12 @@ def build(deps: Deps, checkpointer: Any):
                            result=res.status, reason=res.reason, tool=tool.value)
             outcome["executed"] = res.status
             if res.status in ("executed", "already_executed"):
-                return {"reply": done_text(tool, args, order, lang), "outcome": outcome}
+                text = done_text(tool, args, order, lang)
+                if s.get("converted_refund"):
+                    text += {"en": " Your refund is processed once the item is picked up and checked.",
+                             "hinglish": " Item pickup aur check hone ke baad refund process ho jayega.",
+                             "hi": " सामान पिकअप और जाँच के बाद रिफ़ंड हो जाएगा।"}.get(lang, "")
+                return {"reply": text, "outcome": outcome}
             if (res.reason or "").startswith("kill_switch"):
                 return {"reply": R.say("frozen", lang), "outcome": outcome}
             return {"reply": R.say("courier_down", lang), "outcome": outcome}
@@ -481,6 +500,7 @@ class Agent:
                     out = await self.conversation.ainvoke(payload, {"configurable": {"thread_id": key}}, durability="exit")
                     break
                 except Exception as e:  # noqa: BLE001
+                    import logging as _lg; _lg.getLogger("kavach.agent").warning("turn failed (attempt %s): %r", attempt, e)
                     await self.deps.bus.emit(trace, "reply", "fail", None, error=type(e).__name__, attempt=attempt)
                     if attempt == 2:
                         sorry = {"en": "Sorry, that didn't go through on our side. Please send it again.",
