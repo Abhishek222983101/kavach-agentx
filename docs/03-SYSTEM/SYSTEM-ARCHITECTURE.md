@@ -404,6 +404,8 @@ Graph: `ingest → asr? → guard → understand → (read loop ≤ 8 tool calls
 - **Escalation summary:** ≤ 40 words from the trace (what was asked, what was verified, why it needs a human), in the seller's language.
 
 ### 9.4 Verifier (`verifier/`) , the core
+
+> **Implementation note (Phase 2, D-15):** the verifier (this section) and the executor (§9.5) run together in one **trust service** process (`backend/kavach/trust/`, port 8100, localhost only). The agent process calls `POST /verify`, `POST /approvals/{id}/decide` and `POST /execute` with `TRUST_API_KEY`, and never holds `VERDICT_SECRET` or the store writer key. Settings changes additionally need `X-Seller-Pin`.
 Input `ActionProposal{id, tool, args, claims[{kind, source, statement, evidence?, clause?, quote?}], injection_flags}`.
 - **Claim kinds:** `ownership`, `state`, `temporal`, `monetary`, `duplicate`, `eligibility`, `evidence`, `authority`, `policy`, `frequency`, `channel_identity`.
 - **Required claims per tool** (enforced by the verifier; missing ⇒ BLOCK `missing_claim`):

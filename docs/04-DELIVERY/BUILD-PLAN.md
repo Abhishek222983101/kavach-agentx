@@ -12,9 +12,9 @@ This file only tracks status.
 
 | Phase | Name | Status | Notes |
 |---|---|---|---|
-| 0 | Repo, env, DB, contracts | ⬜ | |
-| 1 | Mock Store API | ⬜ | |
-| 2 | Verifier, executor, audit | ⬜ | hardest |
+| 0 | Repo, env, DB, contracts | ✅ | 22:52; 7 tests |
+| 1 | Mock Store API | ✅ | 22:56; Neon seeded |
+| 2 | Verifier, executor, audit | ✅ | 23:08; AT-01…13 + 13 more; trust service (D-15) |
 | 3 | Agent graph + LLM + web chat | ⬜ | |
 | 4 | Channels | ⬜ | |
 | 5 | ML guard (+ seller preference) | ⬜ | GPU check first |

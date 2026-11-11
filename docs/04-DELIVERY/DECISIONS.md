@@ -24,3 +24,5 @@ The full table with reasons is in `../03-SYSTEM/SYSTEM-ARCHITECTURE.md` §4. Sum
 | D-12 | 2026-11-11 | Serve a distilled student guard (fits 512 MB); report teacher + student | Agent |
 | D-13 | 2026-11-11 | UI = Tessera landing and design system + ETHGlobal light/dark toggle | Owner |
 | D-14 | 2026-11-11 | Twilio = Voight's account only; cost caps: sandbox WhatsApp only (no paid sender), outbound replies only inside the 24 h window, per-user 15 msgs/day, global 300 outbound/day, alert calls dry-run by default and ≤ 3/day to the one verified number, 35 s limit; daily spend check in the console | Owner: "cost properly optimised", don't touch lynky |
+| D-15 | 2026-11-11 | Verifier, router, token signing and executor live together in one **trust service** process; the api/agent process only proposes and holds no secret | Agent (Phase 2): keeps VERDICT_SECRET out of the agent process |
+| D-16 | 2026-11-11 | Render service must be in **Singapore** (same region as Neon); verify measured ~1 s warm from India vs DB, dominated by round trips | Agent (Phase 2 measurement) |
