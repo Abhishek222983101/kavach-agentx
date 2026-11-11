@@ -1,0 +1,1 @@
+store: uv run uvicorn --factory kavach.store.app:create_app --host 127.0.0.1 --port 8200 --no-server-header
