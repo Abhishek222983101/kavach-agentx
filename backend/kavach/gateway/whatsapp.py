@@ -155,8 +155,11 @@ async def webhook(request: Request) -> Response:
 
 
 async def poll_loop(app, interval_s: float = 3.0) -> None:
-    """Local development: fetch new inbound messages from Twilio instead of receiving webhooks."""
-    since = datetime.now(timezone.utc) - timedelta(seconds=5)
+    """Fetch new inbound messages from Twilio instead of receiving webhooks (no public URL or console setting needed).
+    On start it looks back WHATSAPP_POLL_LOOKBACK_S (a free host may have been asleep); MessageSid dedupe in the
+    database makes re-reading the same messages harmless."""
+    lookback = int(os.getenv("WHATSAPP_POLL_LOOKBACK_S", "60"))
+    since = datetime.now(timezone.utc) - timedelta(seconds=max(5, min(lookback, 3600)))
     seen: set[str] = set()
     while True:
         try:
