@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, Lock, Power, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { kavach, rupees, sellerPin, ApiError, type Approval, type ShopRules } from "@/lib/api";
+import { kavach, rupees, sellerPin, ApiError, type Approval, type CallsView, type ShopRules } from "@/lib/api";
 import { useEvents } from "@/lib/live";
 import { TOOL, ago, reason } from "@/lib/words";
 import { Hint, HowTo } from "@/components/ui/kit";
@@ -14,11 +14,13 @@ export default function Seller() {
   const [pin, setPin] = useState("");
   const [authed, setAuthed] = useState(false);
   const [rules, setRules] = useState<ShopRules | null>(null);
+  const [calls, setCalls] = useState<CallsView | null>(null);
   const [items, setItems] = useState<Approval[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     kavach.shopRules().then(setRules).catch(() => {});
+    kavach.calls().then(setCalls).catch(() => {});
     if (!sellerPin.get()) return;
     try { await kavach.sellerFeed(); setItems(await kavach.approvals(true)); setAuthed(true); }   // the feed needs the PIN; approvals alone don't prove it
     catch (e) { if (e instanceof ApiError && (e.status === 401 || e.status === 403)) { setAuthed(false); sellerPin.set(""); } }
@@ -56,6 +58,13 @@ export default function Seller() {
         { do: "Enter the seller PIN, then Approve or Reject", see: "Approve re-checks the records, then pays. The seller also gets each request on Telegram and email." },
         { do: "Press Pause all, then try a ₹299 refund", see: "Even a valid refund is refused while paused." },
       ]} />
+
+      {calls?.enabled && (
+        <section className="card mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-[14px]" aria-label="Phone alerts">
+          <span className="flex items-center gap-2 font-medium"><span className="h-2 w-2 rounded-full" style={{ background: "var(--moss)" }} />📞 Phone alerts {calls.test_mode ? "(test mode)" : "on"}</span>
+          <span className="text-muted">Calls {calls.to} for scam bursts, hidden instructions and big refunds waiting. Press 1 to approve on the call.</span>
+          <span className="tnum text-muted">Today {calls.calls_today}/{calls.daily_cap} · total {calls.calls_total}/{calls.total_cap} · {calls.cooldown_min} min cooldown</span>
+        </section>)}
 
       <section className="mb-5 grid gap-3 sm:grid-cols-3" aria-label="Shop rules">
         <div className={`card p-4 ${killed ? "border-blood/40 bg-bloodbg/40" : ""}`}>

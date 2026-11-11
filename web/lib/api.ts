@@ -70,11 +70,14 @@ export const kavach = {
   sellerFeed: () => call<{ kind: string; text: string; ts?: number }[]>("/api/seller/feed", { pin: true }),
   proofAudit: (limit = 12) => call<ProofAudit>(`/api/proof/audit?limit=${limit}`),
   proofTamper: () => call<TamperOut>("/api/proof/tamper", { method: "POST" }),
+  calls: () => call<CallsView>("/api/seller/calls"),
   recent: () => call<{ trace_id: string; verdict: string; reasons: string[]; tool: string; ts: string; channel: string | null }[]>("/api/proof/recent"),
   proofRoles: () => call<ProofRoles>("/api/proof/roles"),
   trace: (id: string) => call<Trace>(`/api/proof/trace/${encodeURIComponent(id)}`),
 };
 
+export type CallsView = { enabled: boolean; test_mode?: boolean; to?: string; daily_cap?: number; total_cap?: number; cooldown_min?: number;
+  calls_today?: number; calls_total?: number; quiet_hours_ist?: string | null; last?: { kind: string; action: string; at: number } | null };
 export type ShopRules = { kill_switch: boolean | null; auto_limit_paise: number | null; hard_cap_paise: number | null; window_days: number | null; freq_window_days: number | null };
 export type AuditRow = { i: number; ts: string; event: string; summary: string; prev_hash: string; hash: string };
 export type ProofAudit = { total: number; rows: AuditRow[]; latest_paid_trace: string | null; latest_blocked_trace: string | null };

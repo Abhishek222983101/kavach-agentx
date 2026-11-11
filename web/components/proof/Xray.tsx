@@ -40,6 +40,7 @@ export default function Xray({ steps, showWhy = true }: { steps: AnyStep[]; show
   const propose = last("propose");
   const read = last("read");
   const guard = last("guard");
+  const alert = last("alert");
   const plans = steps.filter((s) => s.stage === "plan" && (s.chosen || s.added));
   const done = !!last("reply");
   const claims = ((verify?.claims as Claim[] | undefined) ?? []).filter((c) => typeof c === "object");
@@ -85,6 +86,8 @@ export default function Xray({ steps, showWhy = true }: { steps: AnyStep[]; show
         <p className="text-[14.5px]"><span className="text-muted">AI asked to </span><b>{(TOOL[propose.tool] ?? propose.tool).toLowerCase()}{propose.amount_paise ? ` ${rupees(propose.amount_paise)}` : ""}</b>
           <span className="text-muted">. The verifier re-read the records:</span></p>)}
       {!propose?.tool && done && <p className="text-[14.5px] text-muted">Nothing to verify: just an answer, read from {read?.calls?.length ?? 0} record{read?.calls?.length === 1 ? "" : "s"}.</p>}
+      {alert && <p className="text-[13.5px]"><span className="font-medium">📞 Seller {alert.result === "called" ? "phoned" : alert.result === "dry_run" ? "call prepared (test mode)" : "alert recorded"}</span>
+        <span className="text-muted">{alert.result === "held" ? " · inside the cooldown, so it waits for the next call" : alert.result === "cap" ? " · daily call limit reached, sent to Telegram and email instead" : ""}</span></p>}
       {guard && (guard.guard_tags?.length ?? 0) > 0 && <p className="text-[13.5px] text-amber">Message flagged as {guard.guard_tags!.map((t) => t.toLowerCase().replace(/_/g, " ")).join(", ")}</p>}
 
       {/* 4. each check, failures first */}

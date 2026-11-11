@@ -3,7 +3,7 @@
 export const STAGE: Record<string, string> = {
   ingest: "Message received", guard: "Scam & pressure check", understand: "Understood the ask", plan: "Picked records to read",
   read: "Read the records", propose: "AI proposed an action", verify: "Verifier re-checked facts", route: "Decision",
-  approve: "Seller decision", execute: "Action carried out", reply: "Reply sent",
+  approve: "Seller decision", execute: "Action carried out", reply: "Reply sent", alert: "Seller phoned",
 };
 
 /** Read-only tools the AI can choose to call. */

@@ -75,3 +75,30 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 ## Phase 4b: Seller alert calls
 *Goal: when something risky happens, the seller's phone rings with a 30-second summary, and can approve or reject with a key press.*
 
+
+**What was built (done 04:30):**
+- **When Kavach rings the seller.** Three cases only:
+  1. a customer sends instructions aimed at the AI ("ignore your rules…");
+  2. one customer gets blocked 3 times within 10 minutes (someone probing);
+  3. a big refund (₹2,000 or more), or one whose order record contains a hidden instruction, is still waiting after 90 seconds.
+- **The call itself.** A calm 30-second Indian-English voice states the facts. For waiting refunds it says *"press 1 to approve, or 2 to reject"*. The key press goes through the same checked path as Telegram or the console: the verifier re-reads the records before any money moves.
+- **Safety and cost.**
+  - Only the seller's number from the server settings can ever be dialled.
+  - At most 3 calls a day and 10 in total until 16 Nov (≈ ₹40), and at most one call per 30 minutes. Alerts during the cooldown are summed up in the next call.
+  - Calls last at most 35 seconds.
+  - Our own test runs can't ring anything, enforced twice.
+- **Proof.**
+  - Every call is written to the tamper-proof log.
+  - The receipt shows "📞 Seller phoned".
+  - The seller console shows calls today and in total.
+  - The key-press webhook is checked twice: Twilio's signature, and our own code per approval.
+
+**Live test on a real phone (04:27–04:30):** a ₹5,000 refund was sent to the seller → 90 s later the seller's phone rang → the seller pressed 1 → the verifier re-checked → refund paid. The audit log shows: `ESCALATE … over_hard_cap` → `approval: called` → `seller approved … via phone` → `ALLOW` → `₹5,000 refund … done`.
+
+**Checks:** 92 automated tests pass (11 new, with a fake phone service); security scanners clean. 1 of 10 real calls used.
+
+---
+
+## Phase 5-lite: Photo check
+*Goal: a "damaged item" photo must actually show the item and the damage. Today any image counts, even a payment screenshot.*
+
