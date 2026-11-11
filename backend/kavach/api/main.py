@@ -25,6 +25,9 @@ from kavach.agent.trust_client import TrustClient
 from kavach.common.canonical import constant_time_equal
 from kavach.common.config import require, settings
 from kavach.events import EventBus
+from kavach.gateway import channels
+from kavach.gateway import telegram as tg_routes
+from kavach.gateway import whatsapp as wa_routes
 from kavach.gateway.caps import Caps
 from kavach.gateway.identity import TooManyNewCustomers, record_message, resolve
 from kavach.gateway.outbound import Outbound
@@ -91,9 +94,13 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         st.agent = Agent(Deps(pool=st.pool, store=st.store, trust=st.trust, bus=st.bus, send=st.out.send,
                               notify_seller=st.out.notify_seller), st.checkpointer)
         st.caps = Caps()
-        for hook in st.startup_hooks:          # channel adapters register here (Phase 4)
+        st.seller_pin = pin
+        st.bg_tasks = set()
+        await channels.setup(app)
+        for hook in st.startup_hooks:          # tests can inject fakes after setup
             await hook(app)
         yield
+        await channels.teardown(app)
         await st.bus.drain()
         for o in owned:
             await (o.aclose() if hasattr(o, "aclose") else o.close())
@@ -102,6 +109,8 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
                   docs_url="/docs" if cfg.env == "dev" else None, redoc_url=None)
     app.state.pool, app.state.store, app.state.trust, app.state.checkpointer = pool, store, trust, checkpointer
     app.state.startup_hooks = []
+    app.include_router(wa_routes.router)
+    app.include_router(tg_routes.router)
     origins = [o.strip() for o in os.getenv("WEB_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
                        allow_headers=["Content-Type", "X-Session", "X-Seller-Pin"], max_age=600)
@@ -131,7 +140,7 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         counts: dict[str, int] = {}
         for p in llm.providers():
             counts[p.name] = counts.get(p.name, 0) + 1
-        return {"status": "ok", "llm_keys": counts}
+        return {"status": "ok", "llm_keys": counts, "channels": getattr(app.state, "channels_started", [])}
 
     # ───────────── web chat ─────────────
     @app.post("/api/chat")

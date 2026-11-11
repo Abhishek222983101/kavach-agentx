@@ -27,6 +27,8 @@ class Outbound:
         self.channels: dict[str, ChannelSender] = {}       # "whatsapp", "telegram"
         self.seller_targets: list[tuple[str, str]] = []     # [(channel, user_id)]
         self.seller_feed: deque = deque(maxlen=100)         # recent cards for the console
+        self.mailer = None
+        self._mail_tasks: set = set()
 
     async def send(self, conv: dict, text: str, trace_id: str | None = None) -> None:
         await record_message(self.pool, conv, "out", text)
@@ -59,6 +61,13 @@ class Outbound:
         await self.bus.emit(card.get("trace_id", "seller"), "approve" if card["kind"] == "approval" else "route", "warn", None,
                             kind=card["kind"], approval_id=card.get("approval_id"))
         text, buttons = self.card_text(card)
+        if self.mailer is not None:
+            import asyncio
+            subject = text.splitlines()[0].replace("🛡 ", "").replace("⚠️ ", "").replace("🙋 ", "")
+            task = asyncio.create_task(self.mailer.send(subject, text.replace("Reply 1 to approve, 2 to reject.",
+                                                                              "Approve or reject on WhatsApp/Telegram or in the console.")))
+            self._mail_tasks.add(task)
+            task.add_done_callback(self._mail_tasks.discard)
         for channel, user_id in self.seller_targets:
             sender = self.channels.get(channel)
             if sender:
@@ -66,3 +75,15 @@ class Outbound:
                     await sender(user_id, text, buttons)
                 except Exception as e:  # noqa: BLE001
                     log.warning("seller notify failed on %s: %s", channel, type(e).__name__)
+
+    async def broadcast_seller(self, text: str, exclude: str | None = None) -> None:
+        """Tell the seller's other channels that something was already handled (first decision wins)."""
+        for channel, user_id in self.seller_targets:
+            if channel == exclude:
+                continue
+            sender = self.channels.get(channel)
+            if sender:
+                try:
+                    await sender(user_id, text, None)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("seller broadcast failed on %s: %s", channel, type(e).__name__)

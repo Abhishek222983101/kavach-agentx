@@ -8,8 +8,8 @@
 | 0 | Foundation: code layout, database, permissions, tamper-proof log | ✅ done (11 Nov, 22:52) |
 | 1 | Mock online store (orders, couriers, payments) | ✅ done (11 Nov, 22:56) |
 | 2 | The checker (verifier) and the only component allowed to act (executor) | ✅ done (11 Nov, 23:08) |
-| 3 | The AI agent (understands messages, plans, uses tools) | ✅ done (11 Nov, 23:58) |
-| 4 | WhatsApp, Telegram, email, seller approvals on the phone | ⏳ in progress |
+| 3 | The AI agent (understands messages, plans, uses tools) | ✅ done (11 Nov, 23:54) |
+| 4 | WhatsApp, Telegram, email, seller approvals on the phone | ✅ code done and tested (12 Nov, 00:05); live WhatsApp test needs your phone; Telegram needs a bot token |
 
 ---
 
@@ -190,3 +190,47 @@ One separate service, the **trust service**, does four jobs. It is the only part
   - added daily caps on new demo accounts and a limit on live viewers, so the demo can't be flooded.
 - **Speed:** 2–7 s per message from this laptop. One database round trip to Singapore is **72 ms**, and a refund needs about 50–80 of them across the three services. Deployed in Singapore next to the database, a round trip should be about 1 ms, so we expect about 1–3 s, mostly the AI call. This will be measured in Phase 7, not assumed.
 - **Security scans:** bandit, semgrep (Python, secrets, OWASP Top 10, FastAPI) and pip-audit all clean.
+
+---
+
+## Phase 4: WhatsApp, Telegram, email and the seller's phone
+
+**What we built**
+- **WhatsApp through Twilio:**
+  - A customer messages the sandbox number and talks to the same agent as on the web.
+  - Each WhatsApp number gets its own fresh demo store.
+  - Photos sent on WhatsApp count as evidence for damaged items.
+  - Voice notes get a polite "please type for now"; transcription is a Phase 9 extra.
+- **Two ways to receive WhatsApp messages:**
+  - **webhook** (for the deployed site): every request must carry Twilio's signature, otherwise it's refused. Kavach answers Twilio instantly and works in the background, so Twilio's 15-second timeout never fires.
+  - **polling** (for this laptop): Kavach checks Twilio for new messages every 3 seconds, so it works without a public web address.
+- **Safe sending:**
+  - messages are spaced 3 seconds apart, which is the sandbox's limit;
+  - at most 300 WhatsApp messages a day in total, and 25 handled messages per customer per day, to protect the Twilio balance;
+  - a duplicate delivery of the same message is handled once.
+- **The seller runs the shop from WhatsApp.** An approval card arrives ("approval #12: Asha — ₹1,299 refund on the Bluetooth speaker… Reply 1 to approve, 2 to reject"). The seller can reply:
+  - `1` or `2`, or `approve 12` / `reject 12`, to decide;
+  - `freeze` / `unfreeze` for the kill switch;
+  - `status` for today's numbers and what's waiting.
+
+  Anything else from the seller's number is treated as a normal customer message, so one phone can test both roles.
+- **Telegram:** the same customer chat plus **tap buttons** (Approve / Reject) for the seller. The webhook needs a secret token, and only the seller's chat can press approve. **It's switched off** until you give a Kavach bot token, so Voight's bot is never touched.
+- **Email copies:** every approval card and alert is also emailed to the seller, from the Gmail account Voight already uses.
+- **First decision wins:** approve on WhatsApp, and Telegram/console are told "already approved via WhatsApp". A second "1" gets "nothing is waiting".
+
+**Proof**
+- **63 automated tests pass** (8 new for channels), run 3 times, stable. Fake Twilio, Telegram and email servers record what would be sent, and nothing leaves the laptop. They prove:
+  - a forged WhatsApp request is refused;
+  - a customer chats and gets a ₹299 refund over WhatsApp;
+  - a duplicate delivery gets one reply;
+  - the full damaged-speaker flow: photo request, photo on WhatsApp, escalation; the seller gets the card on WhatsApp **and** Telegram (with buttons) **and** email; the seller replies "1"; the refund runs; the customer is told; Telegram is told it was already approved;
+  - freeze, status and unfreeze from WhatsApp;
+  - the seller's phone can still chat as a customer;
+  - the daily cap stops sending;
+  - Telegram: wrong secret refused, customer chat, the seller's Reject button works, a non-seller's button is ignored.
+- **Live, read-only checks:**
+  - Twilio accepts Voight's credentials (it listed the sandbox's messages; nothing was sent);
+  - Gmail login works (nothing sent);
+  - the full system started with WhatsApp polling and email switched on, with no errors.
+- **Not tested live yet, and needs you:** a real WhatsApp conversation (your phone must re-join the sandbox, since sessions expire after 3 days), and Telegram (needs a Kavach bot token).
+- **Security scans:** bandit, semgrep (Python, secrets, OWASP Top 10, FastAPI) and pip-audit all clean. A manual review added a memory bound to the WhatsApp poller.

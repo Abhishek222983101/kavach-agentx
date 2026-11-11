@@ -18,6 +18,12 @@ import pytest
 from kavach.db import migrate as mig
 from kavach.db.pool import create_pool
 
+# Tests must never reach real Twilio/Telegram/SMTP: force every real channel off (fakes are injected per test).
+os.environ["WHATSAPP_MODE"] = "off"
+os.environ["TELEGRAM_ENABLED"] = "0"
+os.environ["EMAIL_ENABLED"] = "0"
+os.environ["SELLER_WHATSAPP"] = ""
+
 CONTAINER = "kavach-test-pg"
 PASSWORDS = {"kavach_reader": "a1" * 16, "kavach_writer": "b2" * 16}
 
