@@ -81,6 +81,19 @@ def media_from(form: dict[str, Any]) -> list[dict]:
 
 async def process_inbound(app, form: dict[str, Any]) -> None:
     """Handle one inbound WhatsApp message (webhook or poll). Safe to call twice for the same MessageSid."""
+    try:
+        await _process_inbound(app, form)
+    except Exception as e:  # noqa: BLE001 - a customer must never be left in silence
+        log.warning("whatsapp message failed: %s", type(e).__name__)
+        frm = form.get("From", "")
+        if frm.startswith("whatsapp:") and getattr(app.state, "whatsapp", None) is not None:
+            try:
+                await app.state.whatsapp.send(frm, "Maaf kijiye, hamari taraf se gadbad hui. Please dobara bhejiye. / Sorry, something went wrong on our side, please send it again.")
+            except Exception:  # noqa: BLE001
+                pass
+
+
+async def _process_inbound(app, form: dict[str, Any]) -> None:
     st = app.state
     frm, body, sid = form.get("From", ""), (form.get("Body") or "").strip()[:1000], form.get("MessageSid", "")
     if not frm.startswith("whatsapp:") or not sid:

@@ -272,3 +272,28 @@ async def test_new_demo_customers_are_capped(api, fake, monkeypatch):
     monkeypatch.setattr(app.state.caps, "new_customers", app.state.caps._new)     # cap reached
     r = await c.post("/api/chat", json={"text": "hi"}, headers=new_session())
     assert r.status_code == 429
+
+
+async def test_transient_failure_is_retried_then_customer_is_never_left_in_silence(api, fake, monkeypatch):
+    c, app = api
+    h = new_session()
+    await say(c, h, "namaste")
+    graph = app.state.agent.conversation
+    real, calls = graph.ainvoke, {"n": 0}
+
+    async def flaky(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ConnectionError("server closed the connection")
+        return await real(*a, **kw)
+    monkeypatch.setattr(graph, "ainvoke", flaky)
+    out = await say(c, h, "namaste")                          # first attempt fails, retry succeeds
+    assert "Kavach" in out["reply"] and calls["n"] == 2
+
+    async def dead(*a, **kw):
+        raise ConnectionError("database asleep")
+    monkeypatch.setattr(graph, "ainvoke", dead)
+    out = await say(c, h, "namaste")                          # both attempts fail -> polite message, not silence
+    assert "dobara bhejiye" in out["reply"] or "send it again" in out["reply"]
+    hist = (await c.get("/api/chat/history", headers=h)).json()
+    assert hist[-1]["text"] == out["reply"]

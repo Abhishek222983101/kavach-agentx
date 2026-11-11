@@ -474,9 +474,24 @@ class Agent:
         if conv.get("session"):
             self.deps.bus.bind(trace, conv["session"])
         key = f"conv:{conv['channel']}:{conv['user_id']}"
+        payload = {"conv": conv, "text": text[:1000], "media": media or [], "trace_id": trace}
         async with self._lock(key):
-            out = await self.conversation.ainvoke({"conv": conv, "text": text[:1000], "media": media or [], "trace_id": trace},
-                                                  {"configurable": {"thread_id": key}}, durability="exit")
+            for attempt in (1, 2):           # one automatic retry for transient failures (e.g. a dropped DB connection)
+                try:
+                    out = await self.conversation.ainvoke(payload, {"configurable": {"thread_id": key}}, durability="exit")
+                    break
+                except Exception as e:  # noqa: BLE001
+                    await self.deps.bus.emit(trace, "reply", "fail", None, error=type(e).__name__, attempt=attempt)
+                    if attempt == 2:
+                        sorry = {"en": "Sorry, that didn't go through on our side. Please send it again.",
+                                 "hi": "माफ़ कीजिए, हमारी तरफ़ से गड़बड़ हुई। कृपया दोबारा भेजिए।"}.get(conv.get("lang"),
+                                 "Maaf kijiye, hamari taraf se gadbad hui. Please dobara bhejiye.")
+                        try:
+                            await self.deps.send(conv, sorry, trace)
+                        except Exception:  # noqa: BLE001
+                            pass
+                        return {"trace_id": trace, "reply": sorry, "outcome": {"error": type(e).__name__}, "intent": None}
+                    await asyncio.sleep(0.5)
         return {"trace_id": trace, "reply": out.get("reply"), "outcome": out.get("outcome") or {}, "intent": (out.get("u") or {}).get("intent")}
 
     async def decide(self, approval_id: int, decision: dict) -> dict:

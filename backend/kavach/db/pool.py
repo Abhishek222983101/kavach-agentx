@@ -15,4 +15,4 @@ async def create_pool(dsn: str, *, min_size: int = 1, max_size: int = 5) -> asyn
     if not dsn:
         raise RuntimeError("database URL is not configured")
     return await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size, init=_init,
-                                     command_timeout=10, max_inactive_connection_lifetime=60)
+                                     command_timeout=10, max_inactive_connection_lifetime=30)  # recycle before Neon idles out

@@ -64,7 +64,8 @@ async def _open_checkpointer(dsn: str):
     from psycopg.rows import dict_row
     from psycopg_pool import AsyncConnectionPool
 
-    pool = AsyncConnectionPool(dsn, open=False, min_size=1, max_size=5,
+    # Neon scales to zero after idle and drops connections: validate on checkout and recycle idle ones
+    pool = AsyncConnectionPool(dsn, open=False, min_size=1, max_size=5, max_idle=60, check=AsyncConnectionPool.check_connection,
                                kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row})
     await pool.open()
     return AsyncPostgresSaver(pool), pool

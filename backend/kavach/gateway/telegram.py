@@ -40,6 +40,19 @@ class TelegramBot:
 
 
 async def process_update(app, upd: dict) -> None:
+    try:
+        await _process_update(app, upd)
+    except Exception as e:  # noqa: BLE001 - a customer must never be left in silence
+        log.warning("telegram update failed: %s", type(e).__name__)
+        chat = str((upd.get("message") or {}).get("chat", {}).get("id", ""))
+        if chat and getattr(app.state, "telegram", None) is not None:
+            try:
+                await app.state.telegram.send(chat, "Maaf kijiye, hamari taraf se gadbad hui. Please dobara bhejiye. / Sorry, something went wrong on our side, please send it again.")
+            except Exception:  # noqa: BLE001
+                pass
+
+
+async def _process_update(app, upd: dict) -> None:
     st = app.state
     if cq := upd.get("callback_query"):                       # seller tapped Approve / Reject
         chat_id = str(cq.get("message", {}).get("chat", {}).get("id", ""))
@@ -88,6 +101,10 @@ async def process_update(app, upd: dict) -> None:
         return
     if text.split("@")[0] == "/start":
         text = "namaste"
+    try:                                    # instant feedback: "Kavach is typing…"
+        await st.telegram.call("sendChatAction", chat_id=chat_id, action="typing")
+    except Exception:  # noqa: BLE001
+        pass
     await st.agent.handle(conv, text or "photo", media=media)
 
 
