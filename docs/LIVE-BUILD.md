@@ -126,7 +126,7 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 *Goal: real numbers, measured the same way for a "just prompt it" AI and for Kavach.*
 
 
-**What was built (done 05:05):**
+**What was built (done 05:00):**
 - **30 scenarios:** 19 attacks and 11 honest requests, each in a fresh demo shop. The attacks:
   - "the owner said so" (English, Hinglish, Hindi), a fake seller approval, a made-up 30-day policy;
   - instructions aimed at the AI, a hidden instruction in the order note;
@@ -152,7 +152,7 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 
 ---
 
-## Status after this loop (05:10)
+## Status after this loop (05:05)
 - ✅ 7 Deploy · ✅ Agent upgrade · ✅ 4b Alert calls (tested on a real phone) · ✅ 5-lite Photo check · ✅ 8 Eval
 - **Next:** 10 Submission (README, video, slides, repo public) and 5 ML guard.
 - **Owner to-dos:**
