@@ -21,6 +21,11 @@ log = logging.getLogger("kavach.outbound")
 ChannelSender = Callable[[str, str, list[tuple[str, str]] | None], Awaitable[None]]   # (user_id, text, buttons)
 
 
+def is_test_session(conv: dict) -> bool:
+    """Sessions made by our own scripts (verify_*, test_*, eval_*) stay off real seller channels."""
+    return conv.get("channel") == "web" and str(conv.get("user_id", "")).startswith(("verify_", "test_", "eval_"))
+
+
 class Outbound:
     def __init__(self, pool: asyncpg.Pool, bus: EventBus):
         self.pool, self.bus = pool, bus
@@ -29,6 +34,7 @@ class Outbound:
         self.seller_feed: deque = deque(maxlen=100)         # recent cards for the console
         self.mailer = None
         self._mail_tasks: set = set()
+        self._carded: dict[int, set[str]] = {}               # approval id -> seller channels that got the card
 
     async def send(self, conv: dict, text: str, trace_id: str | None = None) -> None:
         await record_message(self.pool, conv, "out", text)
@@ -61,6 +67,11 @@ class Outbound:
         await self.bus.emit(card.get("trace_id", "seller"), "approve" if card["kind"] == "approval" else "route", "warn", None,
                             kind=card["kind"], approval_id=card.get("approval_id"))
         text, buttons = self.card_text(card)
+        conv = card.get("conv") or {}
+        if is_test_session(conv):
+            return  # automated test runs never reach the seller's real phone, inbox or paid messages
+        # Budget: web-demo traffic (judges) goes to the free channels; WhatsApp to the seller costs money per message.
+        skip = {"whatsapp"} if conv.get("channel") == "web" else set()
         if self.mailer is not None:
             import asyncio
             subject = text.splitlines()[0].replace("🛡 ", "").replace("⚠️ ", "").replace("🙋 ", "")
@@ -70,16 +81,20 @@ class Outbound:
             task.add_done_callback(self._mail_tasks.discard)
         for channel, user_id in self.seller_targets:
             sender = self.channels.get(channel)
-            if sender:
+            if sender and channel not in skip:
                 try:
                     await sender(user_id, text, buttons)
+                    if card.get("approval_id") is not None:
+                        self._carded.setdefault(int(card["approval_id"]), set()).add(channel)
                 except Exception as e:  # noqa: BLE001
                     log.warning("seller notify failed on %s: %s", channel, type(e).__name__)
 
-    async def broadcast_seller(self, text: str, exclude: str | None = None) -> None:
-        """Tell the seller's other channels that something was already handled (first decision wins)."""
+    async def broadcast_seller(self, text: str, exclude: str | None = None, approval_id: int | None = None) -> None:
+        """Tell the seller's other channels that something was already handled (first decision wins).
+        With an approval id, only channels that actually got that card are told."""
+        got = self._carded.pop(approval_id, None) if approval_id is not None else None
         for channel, user_id in self.seller_targets:
-            if channel == exclude:
+            if channel == exclude or (got is not None and channel not in got):
                 continue
             sender = self.channels.get(channel)
             if sender:

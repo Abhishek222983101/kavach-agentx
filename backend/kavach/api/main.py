@@ -160,10 +160,14 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
     @app.get("/api/me")
     async def me(sess: str = Depends(session)):
         conv = await web_conv(sess)
-        orders = await app.state.store.orders(conv["customer_id"], limit=10)
-        return {"customer_id": conv["customer_id"], "name": conv["name"],
-                "orders": [{"id": o["id"], "item": o["item"], "status": o["status"], "paid_paise": o["paid_paise"],
-                            "refunded_paise": o["refunded_paise"]} for o in orders]}
+        rows = await app.state.pool.fetch(
+            """SELECT o.id, o.item, o.category, o.status, o.paid_paise, o.refunded_paise, o.cod, o.perishable, o.note,
+                      o.created_at, s.delivered_at, s.courier,
+                      EXISTS (SELECT 1 FROM returns r WHERE r.order_id = o.id) AS has_return,
+                      (SELECT count(*) FROM photos p WHERE p.order_id = o.id) AS photos
+               FROM orders o LEFT JOIN shipments s ON s.awb = o.awb
+               WHERE o.customer_id = $1 ORDER BY o.id""", conv["customer_id"])
+        return {"customer_id": conv["customer_id"], "name": conv["name"], "orders": [dict(r) for r in rows]}
 
     @app.get("/api/chat/history")
     async def history(sess: str = Depends(session)):
@@ -327,20 +331,32 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         if time.monotonic() - _last_tamper["t"] < 2:
             raise HTTPException(429, "one tamper test every 2 seconds")
         _last_tamper["t"] = time.monotonic()
+        log: list[dict] = []
+
+        async def step(conn, sql: str, *args, fetch: str = "val"):
+            t = time.perf_counter()
+            out = await (conn.fetchval(sql, *args) if fetch == "val" else conn.execute(sql, *args))
+            log.append({"sql": sql.replace("$1", repr(args[0]) if args else "$1").replace("$2", repr(args[1]) if len(args) > 1 else "$2"),
+                        "result": out if not isinstance(out, str) or fetch == "val" else out, "ms": round((time.perf_counter() - t) * 1000, 1)})
+            return out
+
         async with app.state.pool.acquire() as conn:
             async with conn.transaction():
-                await conn.execute("CREATE TEMP TABLE audit_copy ON COMMIT DROP AS SELECT * FROM audit_log")
-                n = await conn.fetchval("SELECT count(*) FROM audit_copy")
+                await step(conn, "CREATE TEMP TABLE audit_copy ON COMMIT DROP AS SELECT * FROM audit_log", fetch="exec")
+                n = await step(conn, "SELECT count(*) FROM audit_copy")
                 if not n:
-                    return {"rows": 0, "edited_row": None, "found_broken_row": None, "before": None, "after": None}
+                    return {"rows": 0, "edited_row": None, "found_broken_row": None, "log": log}
                 target = await conn.fetchrow(
-                    "SELECT i, summary FROM audit_copy ORDER BY i OFFSET $1 LIMIT 1", max(0, n // 2))
-                before = await conn.fetchval("SELECT audit_verify('audit_copy'::regclass)")
+                    "SELECT i, ts, event, summary, payload, prev_hash, hash FROM audit_copy ORDER BY i OFFSET $1 LIMIT 1", max(0, n // 2))
+                before = await step(conn, "SELECT audit_verify('audit_copy')")
                 edited = target["summary"].replace("BLOCK", "ALLOW", 1) if "BLOCK" in target["summary"] else target["summary"] + " (edited)"
-                await conn.execute("UPDATE audit_copy SET summary = $1 WHERE i = $2", edited, target["i"])
-                after = await conn.fetchval("SELECT audit_verify('audit_copy'::regclass)")
+                await step(conn, "UPDATE audit_copy SET summary = $1 WHERE i = $2", edited, target["i"], fetch="exec")
+                recomputed = await conn.fetchval(
+                    "SELECT audit_row_hash(prev_hash, ts, event, summary, payload) FROM audit_copy WHERE i = $1", target["i"])
+                after = await step(conn, "SELECT audit_verify('audit_copy')")
         return {"rows": n, "edited_row": target["i"], "original": target["summary"], "edited": edited,
-                "broken_before": before, "found_broken_row": after}
+                "stored_hash": target["hash"], "recomputed_hash": recomputed,
+                "broken_before": before, "found_broken_row": after, "log": log}
 
     @app.get("/api/proof/roles")
     async def proof_roles():
@@ -352,11 +368,25 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         out = []
         for role, table, priv in checks:
             ok = await app.state.pool.fetchval("SELECT has_table_privilege($1, $2, $3)", role, table, priv)
-            out.append({"role": role, "table": table, "privilege": priv, "allowed": ok})
+            out.append({"role": role, "table": table, "privilege": priv, "allowed": ok,
+                        "sql": f"SELECT has_table_privilege('{role}', '{table}', '{priv}')"})
+        # and a real attempt: the API's own connection tries to write a refund row inside a rolled-back transaction
+        try:
+            async with app.state.pool.acquire() as conn:
+                tx = conn.transaction()
+                await tx.start()
+                try:
+                    await conn.execute("INSERT INTO refunds(order_id, amount_paise, idempotency_key) VALUES (0, 1, 'proof')")
+                    attempt = "succeeded (unexpected)"
+                finally:
+                    await tx.rollback()
+        except Exception as e:  # noqa: BLE001 - the error IS the proof
+            attempt = f"{type(e).__name__}: {str(e).splitlines()[0][:160]}"
         me = await app.state.pool.fetchval("SELECT current_user")
         trigger = await app.state.pool.fetchval(
             "SELECT count(*) FROM pg_trigger WHERE tgname = 'audit_no_update' AND NOT tgisinternal")
-        return {"api_runs_as": me, "checks": out, "audit_append_only_trigger": bool(trigger)}
+        return {"api_runs_as": me, "checks": out, "audit_append_only_trigger": bool(trigger),
+                "write_attempt": {"sql": "INSERT INTO refunds(...) VALUES (...)  -- as " + me, "result": attempt}}
 
     @app.get("/api/proof/trace/{trace_id}")
     async def proof_trace(trace_id: str):

@@ -47,7 +47,8 @@ async function call<T>(path: string, init: { method?: string; json?: unknown; pi
   return res.json() as Promise<T>;
 }
 
-export type Order = { id: number; item: string; status: string; paid_paise: number; refunded_paise: number };
+export type Order = { id: number; item: string; category: string; status: string; paid_paise: number; refunded_paise: number; cod: boolean; perishable: boolean;
+  note: string; created_at: string; delivered_at: string | null; courier: string | null; has_return: boolean; photos: number };
 export type Me = { customer_id: string; name: string; orders: Order[] };
 export type ChatOut = { trace_id?: string; reply: string; outcome?: { verdict?: string; reasons?: string[]; tool?: string; executed?: string }; intent?: string | null; limited?: boolean };
 export type Msg = { direction: "in" | "out"; text: string; ts: string };
@@ -77,8 +78,10 @@ export const kavach = {
 export type ShopRules = { kill_switch: boolean | null; auto_limit_paise: number | null; hard_cap_paise: number | null; window_days: number | null; freq_window_days: number | null };
 export type AuditRow = { i: number; ts: string; event: string; summary: string; prev_hash: string; hash: string };
 export type ProofAudit = { total: number; rows: AuditRow[]; latest_paid_trace: string | null; latest_blocked_trace: string | null };
-export type TamperOut = { rows: number; edited_row: number | null; original?: string; edited?: string; broken_before: number | null; found_broken_row: number | null };
-export type ProofRoles = { api_runs_as: string; checks: { role: string; table: string; privilege: string; allowed: boolean }[]; audit_append_only_trigger: boolean };
+export type TamperOut = { rows: number; edited_row: number | null; original?: string; edited?: string; stored_hash?: string; recomputed_hash?: string;
+  broken_before?: number | null; found_broken_row: number | null; log: { sql: string; result: unknown; ms: number }[] };
+export type ProofRoles = { api_runs_as: string; checks: { role: string; table: string; privilege: string; allowed: boolean; sql: string }[]; audit_append_only_trigger: boolean;
+  write_attempt: { sql: string; result: string } };
 export type Claim = { kind: string; ok: boolean; why: string; tier: string; source: string };
 export type TraceStep = { stage: string; status: "running" | "ok" | "warn" | "fail"; t_ms: number | null; ts: string; verdict?: string; reasons?: string[];
   claims?: Claim[] | string[]; intent?: string; plan?: string[]; calls?: string[]; tool?: string; amount_paise?: number | null; guard_score?: number; guard_tags?: string[]; channel?: string; source?: string; result?: string; approval_id?: number };

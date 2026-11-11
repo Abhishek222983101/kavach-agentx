@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { kavach, rupees, sellerPin, ApiError, type Approval, type ShopRules } from "@/lib/api";
 import { useEvents } from "@/lib/live";
 import { TOOL, ago, reason } from "@/lib/words";
-import { Hint } from "@/components/ui/kit";
+import { Hint, HowTo } from "@/components/ui/kit";
 
 const LIMITS = [0, 30000, 50000, 100000];
 
@@ -47,9 +47,15 @@ export default function Seller() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-[28px] font-semibold leading-tight">Seller console</h1>
+        <h1 className="text-[30px] font-semibold leading-tight tracking-tight">Seller console</h1>
         <p className="mt-1.5 text-[15px] text-muted">You set the rules. Kavach holds anything outside them for you.</p>
       </header>
+
+      <HowTo steps={[
+        { do: "In Live demo, claim a broken speaker (₹1,299) with a photo", see: "It's over ₹500, so it lands here." },
+        { do: "Enter the seller PIN, then Approve or Reject", see: "Approve re-checks the records, then pays." },
+        { do: "Press Pause all, then try a ₹299 refund", see: "Even a valid refund is refused while paused." },
+      ]} />
 
       <section className="mb-5 grid gap-3 sm:grid-cols-3" aria-label="Shop rules">
         <div className={`card p-4 ${killed ? "border-blood/40 bg-bloodbg/40" : ""}`}>

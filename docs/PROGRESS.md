@@ -266,3 +266,19 @@ One separate service, the **trust service**, does four jobs. It is the only part
 - Screenshots taken at 1440 px (dark) and 390 px (light).
 
 **Not done yet:** deploy (Phase 7). The photo vision check is in Phase 5. The live hosted URL is still to come.
+
+### Phase 6 revamp (12 Nov, 03:40–04:30 IST), after the owner's review
+
+The owner said the first version was verbose and looked hard-coded, the QR codes didn't look clickable, the colours looked neon, and the tamper result looked fake. [CONFIRMED]
+
+- **Order-first live demo.** Your real demo orders are shown as cards (price, "delivered N days ago", notes, refunds). Pick one, and only the things that make sense for that order appear. Each is labelled with the result it **should** give (Allowed / Sent to the seller / Blocked / Answered).
+  - `scripts/verify_tries.py` checks those promises against the real backend: 11/12 at first; the hidden-note try was re-worded and its fix confirmed (BLOCK). [OBSERVED]
+- **Checks panel.** Verdict first, one line per check (failed checks on top), a short flow line, and a mini diagram of how decisions are made when it's empty.
+- **"How to test this page".** Three numbered steps with the expected result, on the demo, seller and proof pages.
+- **Proof shows raw evidence.** The real SQL that ran, results and timings. Postgres's own `permission denied for table refunds` when the AI's database user tries to write. The edited row's stored vs recomputed SHA-256.
+- **Design.** Light theme by default (dark still available), calmer state colours, the footer follows the theme, and the QR cards have explicit "WhatsApp" / "Telegram" buttons with one-line instructions.
+- **Budget fix (owner flagged real WhatsApp messages from a test run).** The verify script's escalations sent 3 real approval cards to the seller's WhatsApp. Now:
+  - web-demo approvals go to Telegram, email and the seller console only, never paid WhatsApp;
+  - sessions named `verify_`, `test_` or `eval_` reach no real seller channel;
+  - the "already handled" follow-up only goes to channels that got the card.
+  - Regression test added. 74 tests pass.

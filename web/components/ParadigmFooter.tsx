@@ -3,15 +3,19 @@
 import { useEffect, useState } from "react";
 import HalftoneWordmarkFooter from "@/components/ui/halftone-wordmark-footer";
 import { LogoMark } from "@/components/Logo";
+import { useTheme } from "next-themes";
 import { useHealth } from "@/lib/live";
 
 export default function ParadigmFooter() {
   const [ff, setFf] = useState("Helvetica, Arial, sans-serif");
   const live = useHealth();
+  const { resolvedTheme } = useTheme();
+  const light = resolvedTheme !== "dark";
+  const palette = light ? { background: "#efede8", ink: "#3f3f46", warm: "#217a4b" } : { background: "#0a0a0b", ink: "#d4d4d8", warm: "#6fb68f" };
   useEffect(() => { setFf(getComputedStyle(document.body).fontFamily); }, []);
   return (
     <HalftoneWordmarkFooter
-      wordmark="paradigm" fontFamily={ff} monoFamily={ff} height="620px" crop={0.0}
+      wordmark="paradigm" fontFamily={ff} monoFamily={ff} height="600px" crop={0.0} palette={palette}
       label="Team Paradigm"
       meta="Built Kavach for AgentX 2026 (PS-04: support agent for online sellers). Real agent, real checks, fake shop data."
       columns={[

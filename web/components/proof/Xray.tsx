@@ -1,69 +1,100 @@
 "use client";
-import { Check, X, Minus, Loader2 } from "lucide-react";
-import VerdictChip, { type Verdict } from "@/components/feed/VerdictChip";
-import { CLAIM, SOURCE, STAGE, TOOL, reason } from "@/lib/words";
+import { Check, X, Loader2, ArrowRight } from "lucide-react";
+import { type Verdict } from "@/components/feed/VerdictChip";
+import { CLAIM, TOOL, reason } from "@/lib/words";
 import { rupees, type Claim } from "@/lib/api";
 
 export type AnyStep = { stage: string; status: string; t_ms: number | null; verdict?: string; reasons?: string[]; claims?: unknown;
   tool?: string; amount_paise?: number | null; calls?: string[]; intent?: string; guard_score?: number; guard_tags?: string[]; result?: string };
 
-const tone = (s: string) => (s === "ok" ? "var(--moss)" : s === "warn" ? "var(--amber)" : s === "fail" ? "var(--blood)" : "var(--faint)");
+const FLOW = [["read", "Read records"], ["propose", "AI proposes"], ["verify", "Verifier checks"], ["route", "Decides"], ["reply", "Replies"]] as const;
+const dot = (s?: string) => (s === "ok" ? "var(--moss)" : s === "warn" ? "var(--amber)" : s === "fail" ? "var(--blood)" : "var(--line-2)");
 
-/** What happened inside one decision: the pipeline, the verifier's checks, and the verdict. */
-export default function Xray({ steps, compact }: { steps: AnyStep[]; compact?: boolean }) {
+export const VERDICT_TEXT: Record<Verdict, { title: string; sub: string; c: string; bg: string }> = {
+  ALLOW: { title: "Allowed", sub: "Every fact checked out", c: "var(--moss)", bg: "var(--moss-bg)" },
+  ESCALATE: { title: "Sent to the seller", sub: "Real, but needs a person", c: "var(--amber)", bg: "var(--amber-bg)" },
+  BLOCK: { title: "Blocked", sub: "Records don't back it up", c: "var(--blood)", bg: "var(--blood-bg)" },
+  NONE: { title: "Answered", sub: "No money or order change", c: "var(--muted)", bg: "var(--panel-2)" },
+};
+
+/** Empty state that explains the architecture in one glance. */
+export function HowItDecides() {
+  return (
+    <div className="rounded-xl border border-dashed border-line2 p-5">
+      <div className="flex flex-wrap items-center gap-2 text-[13.5px]">
+        <span className="rounded-md bg-panel2 px-2.5 py-1.5">AI reads the message</span><ArrowRight size={14} className="text-faint" />
+        <span className="rounded-md bg-panel2 px-2.5 py-1.5">proposes an action</span><ArrowRight size={14} className="text-faint" />
+        <span className="rounded-md border border-bone/20 bg-panel px-2.5 py-1.5 font-medium">Verifier re-checks the records</span><ArrowRight size={14} className="text-faint" />
+        <span className="rounded-md bg-panel2 px-2.5 py-1.5">allow · ask seller · block</span>
+      </div>
+      <p className="mt-3 text-[13.5px] text-muted">The AI can&apos;t pay anyone. Only the verifier can, and only when the records agree.</p>
+    </div>
+  );
+}
+
+export default function Xray({ steps, showWhy = true }: { steps: AnyStep[]; showWhy?: boolean }) {
+  const last = (st: string) => [...steps].reverse().find((s) => s.stage === st);
   const route = [...steps].reverse().find((s) => s.stage === "route" && s.verdict);
   const verify = [...steps].reverse().find((s) => s.stage === "verify" && Array.isArray(s.claims));
-  const propose = steps.find((s) => s.stage === "propose");
-  const read = steps.find((s) => s.stage === "read");
-  const guard = steps.find((s) => s.stage === "guard");
-  const claims = (verify?.claims as Claim[] | undefined)?.filter((c) => typeof c === "object") ?? [];
-  const done = steps.some((s) => s.stage === "reply");
+  const propose = last("propose");
+  const read = last("read");
+  const guard = last("guard");
+  const done = !!last("reply");
+  const claims = ((verify?.claims as Claim[] | undefined) ?? []).filter((c) => typeof c === "object");
   const verdict = (route?.verdict ?? (done ? "NONE" : undefined)) as Verdict | undefined;
-  const seen = new Map<string, AnyStep>();
-  for (const s of steps) seen.set(s.stage, s);
+  const total = steps.reduce((a, s) => a + (s.t_ms ?? 0), 0);
+  const v = verdict ? VERDICT_TEXT[verdict] : null;
+  const failed = claims.filter((c) => !c.ok);
+  const sorted = [...failed, ...claims.filter((c) => c.ok)];
 
   return (
     <div className="space-y-4">
-      <ol className="flex flex-wrap gap-1.5" aria-label="Steps">
-        {["guard", "understand", "read", "propose", "verify", "route", "execute", "reply"].map((st) => {
-          const s = seen.get(st);
-          return (
-            <li key={st} title={STAGE[st]} className="flex items-center gap-1.5 rounded-md border border-line bg-panel2 px-2 py-1 text-[12.5px] text-muted">
-              {s ? <i className="h-1.5 w-1.5 rounded-full" style={{ background: tone(s.status) }} /> : <i className="h-1.5 w-1.5 rounded-full border border-line2" />}
-              <span className={s ? "text-bone" : ""}>{STAGE[st]}</span>
-              {s?.t_ms != null && s.t_ms > 0 && <span className="tnum text-faint">{s.t_ms < 1000 ? `${s.t_ms}ms` : `${(s.t_ms / 1000).toFixed(1)}s`}</span>}
-            </li>);
-        })}
-      </ol>
+      {/* 1. the answer first */}
+      {v ? (
+        <div className="stamp flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: v.bg }}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ background: v.c, color: "var(--panel)" }}>
+            {verdict === "ALLOW" ? <Check size={18} strokeWidth={3} /> : verdict === "BLOCK" ? <X size={18} strokeWidth={3} /> : <span className="text-[15px] font-bold">{verdict === "ESCALATE" ? "?" : "i"}</span>}
+          </span>
+          <div className="min-w-0">
+            <div className="text-[18px] font-semibold leading-tight" style={{ color: v.c }}>{v.title}</div>
+            <div className="text-[13.5px] text-muted">{route?.reasons?.length ? route.reasons.map(reason).join(" · ") : v.sub}</div>
+          </div>
+          {total > 0 && <span className="ml-auto shrink-0 text-[12.5px] text-faint tnum">{(total / 1000).toFixed(1)}s</span>}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2.5 rounded-xl bg-panel2 px-4 py-3 text-[15px] text-muted"><Loader2 size={16} className="animate-spin" />Checking…</div>
+      )}
 
-      {guard && (guard.guard_tags?.length ?? 0) > 0 && (
-        <p className="text-[14px] text-amber">Scam check flagged: {guard.guard_tags!.map((t) => t.toLowerCase().replace(/_/g, " ")).join(", ")}</p>)}
-
+      {/* 2. what was asked */}
       {propose?.tool && (
-        <p className="text-[14px] text-muted">The AI wanted to: <b className="text-bone">{TOOL[propose.tool] ?? propose.tool}{propose.amount_paise ? ` of ${rupees(propose.amount_paise)}` : ""}</b>. It can&apos;t do that itself, so the verifier re-read the records:</p>)}
+        <p className="text-[14.5px]"><span className="text-muted">AI asked to </span><b>{(TOOL[propose.tool] ?? propose.tool).toLowerCase()}{propose.amount_paise ? ` ${rupees(propose.amount_paise)}` : ""}</b>
+          <span className="text-muted">. The verifier re-read the records:</span></p>)}
+      {!propose?.tool && done && <p className="text-[14.5px] text-muted">Nothing to verify: just an answer, read from {read?.calls?.length ?? 0} record{read?.calls?.length === 1 ? "" : "s"}.</p>}
+      {guard && (guard.guard_tags?.length ?? 0) > 0 && <p className="text-[13.5px] text-amber">Message flagged as {guard.guard_tags!.map((t) => t.toLowerCase().replace(/_/g, " ")).join(", ")}</p>}
 
-      {claims.length > 0 && (
-        <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line">
-          {claims.map((c, i) => (
-            <li key={i} className="row-in flex items-start gap-3 bg-panel px-3 py-2.5" style={{ animationDelay: `${i * 70}ms` }}>
-              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: c.ok ? "var(--moss-bg)" : "var(--blood-bg)", color: c.ok ? "var(--moss)" : "var(--blood)" }}>
-                {c.ok ? <Check size={13} strokeWidth={3} /> : <X size={13} strokeWidth={3} />}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[14.5px] text-bone">{CLAIM[c.kind] ?? c.kind}</span>
-                {!compact && <span className="block text-[13px] text-muted">{c.why}</span>}
+      {/* 3. each check, failures first */}
+      {sorted.length > 0 && (
+        <ul className="space-y-1">
+          {sorted.map((c, i) => (
+            <li key={c.kind + i} className="row-in flex items-start gap-2.5 rounded-lg px-1 py-1" style={{ animationDelay: `${i * 60}ms` }}>
+              <span className="mt-[3px] grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full" style={{ background: c.ok ? "var(--moss-bg)" : "var(--blood-bg)", color: c.ok ? "var(--moss)" : "var(--blood)" }}>
+                {c.ok ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}</span>
+              <span className="min-w-0 text-[14.5px] leading-snug">
+                <span className={c.ok ? "" : "font-medium"}>{CLAIM[c.kind] ?? c.kind}</span>
+                {showWhy && <span className="block text-[13px] text-muted">{c.why}{c.source === "customer" ? " (customer's word)" : ""}</span>}
               </span>
-              <span className="shrink-0 rounded border border-line px-1.5 py-0.5 text-[11.5px] text-faint">{c.tier === "REQ" ? "required" : SOURCE[c.source] ?? c.source}</span>
             </li>))}
         </ul>)}
 
-      {!propose && done && read?.calls && (
-        <p className="flex items-center gap-2 text-[14px] text-muted"><Minus size={14} />Just an answer, no money or order change. Read {read.calls.length} record{read.calls.length === 1 ? "" : "s"}.</p>)}
-
-      <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
-        {verdict ? <span className="stamp inline-block"><VerdictChip verdict={verdict} big /></span>
-          : <span className="flex items-center gap-2 text-[14px] text-muted"><Loader2 size={14} className="animate-spin" />Checking…</span>}
-        {route?.reasons && route.reasons.length > 0 && <span className="text-[14px] text-muted">because {route.reasons.map(reason).join(", ")}</span>}
-      </div>
+      {/* 4. where we are in the pipeline */}
+      <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-line pt-3 text-[12px] text-faint" aria-label="Steps">
+        {FLOW.map(([st, label], i) => {
+          const s = last(st);
+          return (<li key={st} className="flex items-center gap-1 whitespace-nowrap">
+            <i className="h-1.5 w-1.5 rounded-full" style={{ background: dot(s?.status) }} /><span className={s ? "text-muted" : ""}>{label}</span>
+            {i < FLOW.length - 1 && <span className="mx-0.5 text-line2">—</span>}</li>);
+        })}
+      </ol>
     </div>
   );
 }

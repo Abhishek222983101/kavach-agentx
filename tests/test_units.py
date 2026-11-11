@@ -57,3 +57,29 @@ async def test_event_bus_subscribers_are_hashable_and_scoped():
     assert mine.queue.qsize() == 1 and other.queue.qsize() == 0 and public.queue.qsize() == 1
     assert "customer_text" not in public.queue.get_nowait()          # public feed never carries private fields
     bus.unsubscribe(mine)
+
+
+async def test_seller_cards_respect_the_whatsapp_budget():
+    """Web-demo approvals go to free channels only; our own test/verify sessions reach no real channel."""
+    from kavach.events import EventBus
+    from kavach.gateway.outbound import Outbound
+    sent: list[str] = []
+
+    def chan(name):
+        async def send(uid, text, buttons):
+            sent.append(name)
+        return send
+
+    out = Outbound(None, EventBus(None))
+    out.channels = {"whatsapp": chan("whatsapp"), "telegram": chan("telegram")}
+    out.seller_targets = [("whatsapp", "w"), ("telegram", "t")]
+    card = {"kind": "approval", "approval_id": 7, "summary": "x", "trace_id": "tr_x", "args": {"order_id": 1, "amount_paise": 99900}, "tool": "issue_refund", "order": {"id": 1, "item": "Speaker"}}
+    await out.notify_seller({**card, "conv": {"channel": "web", "user_id": "web_aaaaaaaaaaaaaaaaaaaa"}})
+    assert sent == ["telegram"]
+    await out.broadcast_seller("done", exclude="telegram", approval_id=7)
+    assert sent == ["telegram"]                                   # WhatsApp never got the card, so no follow-up either
+    sent.clear()
+    await out.notify_seller({**card, "conv": {"channel": "web", "user_id": "verify_0123456789abcdef"}})
+    assert sent == []
+    await out.notify_seller({**card, "approval_id": 8, "conv": {"channel": "whatsapp", "user_id": "+91000"}})
+    assert sorted(sent) == ["telegram", "whatsapp"]               # real WhatsApp customers still reach the seller everywhere

@@ -1,121 +1,169 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Check, Database, FlaskConical, KeyRound, Link2, Loader2, X } from "lucide-react";
+import { ArrowUpRight, Loader2, Play } from "lucide-react";
 import { toast } from "sonner";
 import { kavach, rupees, ApiError, type ProofAudit, type ProofRoles, type Stats, type TamperOut } from "@/lib/api";
-import { ago } from "@/lib/words";
-import { Hint } from "@/components/ui/kit";
+import { useEvents, type Step } from "@/lib/live";
+import { TOOL, ago, reason } from "@/lib/words";
+import { VERDICT_TEXT } from "@/components/proof/Xray";
+import { type Verdict } from "@/components/feed/VerdictChip";
+import { HowTo } from "@/components/ui/kit";
 
-const short = (h: string) => h.slice(0, 8) + "…" + h.slice(-4);
+const short = (h?: string) => (h ? h.slice(0, 10) + "…" + h.slice(-6) : "");
 
-function ProofCard({ n, icon: I, title, claim, children }: { n: string; icon: typeof Database; title: string; claim: string; children: React.ReactNode }) {
+/** Terminal-style block: what ran, and exactly what came back. */
+function Term({ children }: { children: React.ReactNode }) {
+  return <div className="overflow-x-auto rounded-lg border border-line bg-panel2 p-3 font-mono text-[12.5px] leading-relaxed">{children}</div>;
+}
+const Q = ({ children }: { children: React.ReactNode }) => <div className="text-muted"><span className="select-none text-faint">kavach=&gt; </span>{children}</div>;
+const R = ({ children, tone }: { children: React.ReactNode; tone?: "ok" | "bad" }) => (
+  <div className="mb-1.5 pl-4" style={{ color: tone === "ok" ? "var(--moss)" : tone === "bad" ? "var(--blood)" : "var(--bone)" }}>{children}</div>);
+
+function Proof({ n, title, claim, run, running, children }: { n: number; title: string; claim: string; run?: () => void; running?: boolean; children: React.ReactNode }) {
   return (
     <section className="card p-5">
-      <div className="mb-4 flex items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line2 bg-panel2"><I size={17} /></span>
-        <div><div className="text-[12.5px] text-faint tnum">Proof {n}</div><h2 className="text-[17px] font-semibold leading-snug">{title}</h2>
-          <p className="mt-0.5 text-[14px] text-muted">{claim}</p></div>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div><div className="text-[12.5px] font-medium text-faint tnum">PROOF {n}</div>
+          <h2 className="mt-0.5 text-[18px] font-semibold leading-snug">{title}</h2>
+          <p className="mt-0.5 text-[14.5px] text-muted">{claim}</p></div>
+        {run && <button onClick={run} disabled={running} className="btn btn-primary shrink-0">{running ? <Loader2 size={15} className="animate-spin" /> : <Play size={14} fill="currentColor" />}Run</button>}
       </div>
       {children}
     </section>
   );
 }
 
-export default function Proof() {
+type FeedRow = { trace: string; verdict: Verdict; reasons: string[]; tool?: string; channel?: string | null; ts: number };
+
+export default function ProofPage() {
   const [roles, setRoles] = useState<ProofRoles | null>(null);
+  const [rolesBusy, setRolesBusy] = useState(false);
   const [audit, setAudit] = useState<ProofAudit | null>(null);
   const [intact, setIntact] = useState<{ intact: boolean; first_broken_row: number | null } | null>(null);
   const [tamper, setTamper] = useState<TamperOut | null>(null);
   const [tampering, setTampering] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [feed, setFeed] = useState<FeedRow[]>([]);
 
-  useEffect(() => {
-    kavach.proofRoles().then(setRoles).catch(() => {});
-    kavach.proofAudit(10).then(setAudit).catch(() => {});
-    kavach.audit().then(setIntact).catch(() => {});
-    kavach.stats().then(setStats).catch(() => {});
-  }, []);
-
+  const runRoles = async () => { setRolesBusy(true); try { setRoles(await kavach.proofRoles()); } catch { toast.error("Couldn't reach the database"); } finally { setRolesBusy(false); } };
   async function runTamper() {
     setTampering(true); setTamper(null);
-    try { setTamper(await kavach.proofTamper()); } catch (e) { toast.error(e instanceof ApiError ? e.message : "Tamper test failed to run"); }
-    finally { setTampering(false); }
+    try { setTamper(await kavach.proofTamper()); kavach.audit().then(setIntact).catch(() => {}); }
+    catch (e) { toast.error(e instanceof ApiError ? e.message : "Tamper test failed to run"); } finally { setTampering(false); }
   }
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    runRoles();
+    kavach.proofAudit(6).then(setAudit).catch(() => {});
+    kavach.audit().then(setIntact).catch(() => {});
+    kavach.stats().then(setStats).catch(() => {});
+    kavach.recent().then((r) => setFeed(r.map((x) => ({ trace: x.trace_id, verdict: x.verdict as Verdict, reasons: x.reasons ?? [], tool: x.tool, channel: x.channel, ts: Date.parse(x.ts) })))).catch(() => {});
+  }, []);
+  const meta: Record<string, { tool?: string; channel?: string }> = {};
+  useEvents("all", (e) => {
+    if (e.type !== "step") return;
+    const s = e as Step; const m = (meta[s.trace_id] ??= {});
+    if (s.channel) m.channel = s.channel; if (s.tool) m.tool = s.tool;
+    if (s.stage === "route" && s.verdict) { setFeed((f) => [{ trace: s.trace_id, verdict: s.verdict as Verdict, reasons: s.reasons ?? [], tool: m.tool, channel: m.channel, ts: Date.now() }, ...f].slice(0, 12)); kavach.stats().then(setStats).catch(() => {}); }
+  });
+
+  const reader = roles?.checks.filter((c) => c.role === "kavach_reader") ?? [];
+  const writer = roles?.checks.filter((c) => c.role !== "kavach_reader") ?? [];
 
   return (
-    <div>
-      <header className="mb-7 max-w-3xl">
-        <h1 className="text-[28px] font-semibold leading-tight">Don&apos;t trust us. Check.</h1>
-        <p className="mt-1.5 text-[15px] text-muted">Each card below asks the live system a question and shows the raw answer. Nothing on this page is typed in by hand.</p>
+    <div className="max-w-[1100px]">
+      <header className="mb-5">
+        <h1 className="text-[30px] font-semibold leading-tight tracking-tight">Don&apos;t trust us. Check.</h1>
+        <p className="mt-1 text-[15.5px] text-muted">Each proof runs against the live database when you press Run. What you see is what came back.</p>
       </header>
 
+      <HowTo steps={[
+        { do: "Press Run on Proof 1", see: "Postgres refuses the AI's attempt to write a refund." },
+        { do: "Press Run on Proof 2", see: "Edit one row of a copy; the check finds that row." },
+        { do: "Open any receipt below", see: "Every check behind a real decision." },
+      ]} />
+
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[["Done automatically", stats?.allowed, "var(--moss)"], ["Sent to the seller", stats?.escalated, "var(--amber)"], ["Blocked", stats?.blocked, "var(--blood)"]].map(([l, v, c]) => (
-          <div key={l as string} className="card p-4"><div className="text-[13px] text-muted">{l}</div><div className="mt-2 text-[28px] font-semibold leading-none tnum" style={{ color: c as string }}>{v ?? "–"}</div></div>))}
-        <div className="card p-4"><div className="text-[13px] text-muted">Refunded after checks</div><div className="mt-2 text-[28px] font-semibold leading-none tnum">{rupees(stats?.paise_refunded)}</div></div>
+        {([["ALLOW", stats?.allowed], ["ESCALATE", stats?.escalated], ["BLOCK", stats?.blocked]] as const).map(([v, n]) => (
+          <div key={v} className="card p-4"><div className="text-[13px] text-muted">{VERDICT_TEXT[v].title}</div><div className="mt-1.5 text-[28px] font-semibold leading-none tnum">{n ?? "–"}</div></div>))}
+        <div className="card p-4"><div className="text-[13px] text-muted">Refunded after checks</div><div className="mt-1.5 text-[28px] font-semibold leading-none tnum">{rupees(stats?.paise_refunded)}</div></div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <ProofCard n="1" icon={Database} title="The AI's process cannot move money" claim="Asked live from Postgres: what is each service's database user allowed to do?">
-          {!roles ? <Loader2 className="animate-spin text-faint" size={18} /> : (<>
-            <p className="mb-2 text-[13.5px] text-muted">The chat/AI process connects as <code className="rounded bg-panel2 px-1.5 py-0.5 text-[13px] text-bone">{roles.api_runs_as}</code>.</p>
-            <table className="w-full text-[14px]">
-              <thead><tr className="text-left text-[12.5px] text-faint"><th className="pb-1.5 font-normal">Database user</th><th className="pb-1.5 font-normal">Can it…</th><th className="pb-1.5 text-right font-normal">Postgres says</th></tr></thead>
-              <tbody className="divide-y divide-line">
-                {roles.checks.map((c) => (
-                  <tr key={c.role + c.table + c.privilege}>
-                    <td className="py-1.5 text-muted">{c.role === "kavach_reader" ? "AI / chat" : "Verifier & store"}</td>
-                    <td className="py-1.5"><span className="font-mono text-[13px]">{c.privilege}</span> <span className="text-muted">{c.table}</span></td>
-                    <td className="py-1.5 text-right">{c.allowed ? <span className="inline-flex items-center gap-1 text-amber"><Check size={14} />yes</span> : <span className="inline-flex items-center gap-1 text-moss"><X size={14} />no</span>}</td>
-                  </tr>))}
-              </tbody>
-            </table>
-            <p className="mt-3 text-[13.5px] text-muted">So even a fully hijacked AI can only <i>ask</i>. Only the verifier writes refunds, after re-checking.</p>
-          </>)}
-        </ProofCard>
+      <div className="space-y-5">
+        <Proof n={1} title="The AI's process cannot pay anyone" claim="The chat and AI run as a database user that Postgres won't let write refunds. We try anyway." run={runRoles} running={rolesBusy}>
+          {!roles ? <Loader2 size={18} className="animate-spin text-faint" /> : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Term>
+                <Q>SELECT current_user;</Q><R>{roles.api_runs_as}</R>
+                <Q>{roles.write_attempt.sql}</Q><R tone="ok">ERROR: {roles.write_attempt.result.replace(/^\w+: /, "")}</R>
+              </Term>
+              <div className="text-[14px]">
+                <table className="w-full">
+                  <thead><tr className="text-left text-[12.5px] text-faint"><th className="pb-1 font-normal">Postgres permission</th><th className="pb-1 text-center font-normal">AI / chat</th><th className="pb-1 text-center font-normal">Verifier</th></tr></thead>
+                  <tbody className="divide-y divide-line">
+                    {reader.map((c) => {
+                      const w = writer.find((x) => x.table === c.table && x.privilege === c.privilege);
+                      return (<tr key={c.sql} title={c.sql}>
+                        <td className="py-1.5"><span className="font-mono text-[12.5px]">{c.privilege}</span> {c.table}</td>
+                        <td className="py-1.5 text-center">{c.allowed ? "yes" : <span className="text-muted">no</span>}</td>
+                        <td className="py-1.5 text-center">{w ? (w.allowed ? <b>yes</b> : <span className="text-muted">no</span>) : <span className="text-faint">–</span>}</td>
+                      </tr>);
+                    })}
+                  </tbody>
+                </table>
+                <p className="mt-2 text-[13px] text-muted">Nobody can edit or delete the log: {roles.audit_append_only_trigger ? "a database trigger refuses it" : "trigger missing!"}.</p>
+              </div>
+            </div>)}
+        </Proof>
 
-        <ProofCard n="2" icon={Link2} title="Every decision is in a log nobody can quietly edit" claim="Each row's fingerprint includes the previous row's. Change one, and every later link breaks.">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-[14px]">
-            {intact ? (intact.intact ? <span className="inline-flex items-center gap-1.5 rounded-md bg-mossbg px-2 py-0.5 font-medium text-moss"><Check size={14} />Chain intact</span>
-              : <span className="rounded-md bg-bloodbg px-2 py-0.5 font-medium text-blood">Broken at row {intact.first_broken_row}</span>) : <Loader2 size={14} className="animate-spin text-faint" />}
-            {audit && <span className="text-muted">{audit.total} rows · updates and deletes are refused by the database</span>}
+        <Proof n={2} title="The decision log can't be changed quietly" claim="Each row's fingerprint (SHA-256) includes the row before it. We copy the log, change one word, and re-check." run={runTamper} running={tampering}>
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px]">
+            <span>Live log: <b className="tnum">{audit?.total ?? "–"}</b> rows</span>
+            <span>Check right now: {intact ? (intact.intact ? <b style={{ color: "var(--moss)" }}>intact</b> : <b style={{ color: "var(--blood)" }}>broken at #{intact.first_broken_row}</b>) : "…"}</span>
           </div>
-          <ul className="max-h-[260px] space-y-1 overflow-y-auto rounded-lg border border-line bg-panel2 p-2 font-mono text-[12px]">
-            {audit?.rows.map((r) => (
-              <li key={r.i} className="grid grid-cols-[2.6rem_1fr] gap-2 rounded px-1.5 py-1 hover:bg-panel">
-                <span className="text-faint tnum">#{r.i}</span>
-                <span className="min-w-0"><span className="block truncate font-sans text-[13px] text-bone">{r.summary}</span>
-                  <span className="text-faint">{short(r.prev_hash)} → <span className="text-muted">{short(r.hash)}</span> · {ago(r.ts)}</span></span>
+          {!tamper && audit && (
+            <Term>{audit.rows.map((r) => (
+              <div key={r.i} className="flex gap-3 whitespace-nowrap"><span className="w-9 text-faint">#{r.i}</span><span className="text-faint">{short(r.prev_hash)} →</span><span>{short(r.hash)}</span><span className="truncate text-muted">{r.summary}</span></div>))}
+            </Term>)}
+          {tamper && (
+            <Term>
+              {tamper.log.map((l, i) => (<div key={i}>
+                <Q>{l.sql}</Q>
+                <R tone={l.sql.includes("audit_verify") ? (l.result == null ? "ok" : "bad") : undefined}>
+                  {l.sql.includes("audit_verify") ? (l.result == null ? "NULL   -- chain intact" : `${String(l.result)}   -- first broken row`) : String(l.result)}
+                  <span className="ml-3 text-faint">({l.ms} ms)</span></R>
+              </div>))}
+              <div className="mt-2 border-t border-line pt-2 text-muted">
+                row #{tamper.edited_row} stored hash     <span className="text-bone">{short(tamper.stored_hash)}</span><br />
+                row #{tamper.edited_row} recomputed hash <span style={{ color: "var(--blood)" }}>{short(tamper.recomputed_hash)}</span>   -- no longer matches
+              </div>
+            </Term>)}
+          {tamper && <p className="mt-2 text-[13.5px] text-muted">Only the copy was changed, and it is dropped after the test. The real log stays intact.</p>}
+        </Proof>
+
+        <Proof n={3} title="Every payout needs a one-time signed slip" claim="The verifier signs the exact order and amount (HMAC). The slip works once and expires in 10 minutes.">
+          <div className="flex flex-wrap gap-2">
+            {audit?.latest_paid_trace && <Link href={`/proof/${audit.latest_paid_trace}`} className="btn btn-ghost">Open a real paid refund<ArrowUpRight size={14} /></Link>}
+            {audit?.latest_blocked_trace && <Link href={`/proof/${audit.latest_blocked_trace}`} className="btn btn-ghost">Open a real blocked one<ArrowUpRight size={14} /></Link>}
+          </div>
+        </Proof>
+
+        <section className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3.5"><h2 className="text-[16px] font-semibold">Every decision, live</h2><span className="text-[13px] text-faint">web · WhatsApp · Telegram</span></div>
+          <ul className="divide-y divide-line">
+            {feed.length === 0 && <li className="px-5 py-6 text-center text-[14px] text-muted">No decisions yet.</li>}
+            {feed.map((f) => (
+              <li key={f.trace + f.ts}>
+                <Link href={`/proof/${f.trace}`} className="row-in flex flex-wrap items-center gap-x-3 gap-y-0.5 px-5 py-2.5 text-[14px] hover:bg-panel2">
+                  <span className="w-[120px] shrink-0 font-medium" style={{ color: VERDICT_TEXT[f.verdict]?.c }}>{VERDICT_TEXT[f.verdict]?.title}</span>
+                  <span className="w-[110px] shrink-0">{f.tool ? TOOL[f.tool] ?? f.tool : "Request"}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted">{f.reasons.map(reason).join(", ")}</span>
+                  <span className="shrink-0 text-[12.5px] text-faint">{f.channel ?? ""} · {ago(f.ts)}</span>
+                </Link>
               </li>))}
           </ul>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button onClick={runTamper} disabled={tampering} className="btn btn-primary">{tampering ? <Loader2 size={15} className="animate-spin" /> : <FlaskConical size={15} />}Try to tamper with it</button>
-            <Hint>Copies the log into a throwaway table, changes one row of the copy, and runs the same check. The real log is never touched.</Hint>
-          </div>
-          {tamper && tamper.edited_row != null && (
-            <div className="stamp mt-3 rounded-lg border border-blood/30 bg-bloodbg p-3 text-[14px]">
-              <p>Changed row <b className="tnum">#{tamper.edited_row}</b> of a copy:</p>
-              <p className="mt-1 font-mono text-[12.5px]"><span className="text-muted line-through">{tamper.original}</span><br /><span className="text-bone">{tamper.edited}</span></p>
-              <p className="mt-2 font-medium text-blood">Check result: broken at row #{tamper.found_broken_row}. Caught{tamper.found_broken_row === tamper.edited_row ? " exactly where it was changed" : ""}.</p>
-            </div>)}
-        </ProofCard>
-
-        <ProofCard n="3" icon={KeyRound} title="A payout needs a one-time signed slip" claim="The verifier signs the exact order and amount. The slip expires in minutes and works once.">
-          <ul className="space-y-2 text-[14.5px]">
-            {["Slip is bound to a fingerprint of the exact action. Change ₹1 and it's void.", "Each slip carries a one-time number. Re-using it is refused by the database.", "The seller's kill switch is checked at payout time, not just at decision time."].map((t) => (
-              <li key={t} className="flex gap-2"><Check size={16} className="mt-0.5 shrink-0 text-moss" />{t}</li>))}
-          </ul>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {audit?.latest_paid_trace && <Link href={`/proof/${audit.latest_paid_trace}`} className="btn btn-ghost">See a real paid refund<ArrowUpRight size={14} /></Link>}
-            {audit?.latest_blocked_trace && <Link href={`/proof/${audit.latest_blocked_trace}`} className="btn btn-ghost">See a real blocked one<ArrowUpRight size={14} /></Link>}
-          </div>
-        </ProofCard>
-
-        <ProofCard n="4" icon={FlaskConical} title="Try it yourself" claim="Every reply in the live demo links to its own receipt, with every check and its timing.">
-          <p className="text-[14.5px] text-muted">The AI can be confused. It can&apos;t be made to pay: facts are re-read from the records, not taken from the chat.</p>
-          <Link href="/console" className="btn btn-primary mt-4">Open the live demo<ArrowUpRight size={14} /></Link>
-        </ProofCard>
+        </section>
       </div>
     </div>
   );

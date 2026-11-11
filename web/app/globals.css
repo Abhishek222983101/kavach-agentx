@@ -8,14 +8,14 @@
    Legacy token names kept from Tessera: ink = page, panel = card, bone = text. */
 :root {
   /* light: warm paper page, white cards, ink text */
-  --ink: #f6f0e3;  --panel: #ffffff;  --panel-2: #faf6ee;  --panel-3: #efe7d9;
-  --line: #e3dccd; --line-2: #d3c9b6;
-  --bone: #111214; --muted: #565b62; --faint: #7a7f86;
-  --blood: #c81e1e; --ember: #c2410c; --amber: #a15c07; --moss: #15803d; --ice: #2563eb; --violet: #6d28d9; --teal: #0f766e; --pink: #be185d;
+  --ink: #f7f6f3;  --panel: #ffffff;  --panel-2: #f3f2ee;  --panel-3: #e9e7e1;
+  --line: #e6e3dc; --line-2: #d6d2c8;
+  --bone: #18181b; --muted: #52525b; --faint: #8a8a93;
+  --blood: #b42318; --ember: #b54708; --amber: #a15c07; --moss: #217a4b; --ice: #2563eb; --violet: #6d28d9; --teal: #0f766e; --pink: #be185d;
   --blood-bg: rgba(200,30,30,.09); --moss-bg: rgba(21,128,61,.10); --amber-bg: rgba(161,92,7,.11); --ice-bg: rgba(37,99,235,.09);
   --violet-bg: rgba(109,40,217,.09); --brand-bg: rgba(17,18,20,.05); --ember-bg: rgba(194,65,12,.10); --teal-bg: rgba(15,118,110,.10); --pink-bg: rgba(190,24,93,.09);
   --shadow-lg: 0 20px 50px rgba(60,45,20,.12); --iso-shadow: drop-shadow(0 24px 40px rgba(60,45,20,.18));
-  --background: #f6f0e3; --foreground: #111214; --card: #ffffff; --card-foreground: #111214; --popover: #ffffff; --popover-foreground: #111214;
+  --background: #f7f6f3; --foreground: #111214; --card: #ffffff; --card-foreground: #111214; --popover: #ffffff; --popover-foreground: #111214;
   --primary: #111214; --primary-foreground: #ffffff; --secondary: #efe7d9; --secondary-foreground: #111214; --accent: #efe7d9; --accent-foreground: #111214;
   --destructive: #c81e1e; --border: #e3dccd; --input: #d3c9b6; --ring: #2563eb; --radius: 0.625rem;
   --muted-foreground: #565b62;
@@ -25,8 +25,8 @@
   --ink: #0a0a0b;  --panel: #111113;  --panel-2: #17171a;  --panel-3: #1f1f23;
   --line: #26262b; --line-2: #34343b;
   --bone: #f2f2f3; --muted: #a1a1aa; --faint: #71717a;
-  --blood: #f0545a; --ember: #f58a3d; --amber: #f5b83d; --moss: #3fb27f; --ice: #5b9dff; --violet: #9a8cff; --teal: #3cc4b5; --pink: #f06aa8;
-  --blood-bg: rgba(240,84,90,.12); --moss-bg: rgba(63,178,127,.12); --amber-bg: rgba(245,184,61,.12); --ice-bg: rgba(91,157,255,.12);
+  --blood: #e5787b; --ember: #e09a63; --amber: #d6a756; --moss: #6fb68f; --ice: #5b9dff; --violet: #9a8cff; --teal: #3cc4b5; --pink: #f06aa8;
+  --blood-bg: rgba(229,120,123,.10); --moss-bg: rgba(111,182,143,.10); --amber-bg: rgba(214,167,86,.10); --ice-bg: rgba(91,157,255,.12);
   --violet-bg: rgba(154,140,255,.12); --brand-bg: rgba(255,255,255,.06); --ember-bg: rgba(245,138,61,.12); --teal-bg: rgba(60,196,181,.12); --pink-bg: rgba(240,106,168,.12);
   --shadow-lg: 0 20px 60px rgba(0,0,0,.5); --iso-shadow: drop-shadow(0 30px 50px rgba(0,0,0,.45));
   --background: #0a0a0b; --foreground: #f2f2f3; --card: #111113; --card-foreground: #f2f2f3; --popover: #17171a; --popover-foreground: #f2f2f3;
@@ -51,7 +51,7 @@
   --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 14px;
 }
 html, body { background: var(--ink); color: var(--bone); }
-body { font-family: var(--font-sans); font-size: 16px; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; letter-spacing: -0.006em; line-height: 1.6; }
+body { font-family: var(--font-sans); font-size: 16px; font-feature-settings: "ss01", "cv11"; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; letter-spacing: -0.006em; line-height: 1.6; }
 h1, h2, h3 { letter-spacing: -0.02em; font-weight: 600; }
 ::selection { background: color-mix(in srgb, var(--ice) 35%, transparent); }
 * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; border-color: var(--line); }

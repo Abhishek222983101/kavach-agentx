@@ -17,15 +17,24 @@ export const CLAIM: Record<string, string> = {
   policy: "Matches the written shop policy", authority: "No one is claiming special authority",
 };
 
+/** What a FAILED check means, said plainly. */
+export const FAILED: Record<string, string> = {
+  ownership: "not this customer's order", state: "order isn't in a state that allows it", temporal: "outside the time window",
+  monetary: "more than was paid", duplicate: "already done before", eligibility: "policy doesn't allow it for this item",
+  evidence: "no photo on file", frequency: "too many recent refunds", channel_identity: "different phone or chat than the order",
+  policy: "doesn't match the written policy", authority: "someone claimed special authority",
+};
+
 const REASON: Record<string, string> = {
   over_auto_limit: "more than the auto-refund limit", over_hard_cap: "above the seller's hard cap", refund_frequency: "too many recent refunds",
   guard_flag: "message looked like pressure or a scam", instruction_to_agent: "message tried to give the AI orders",
-  injection_in_note: "a hidden instruction was found in the order note", kill_switch: "seller paused all payouts",
+  injection_in_note: "a hidden instruction was found in the order note", instruction_in_record: "a hidden instruction was found in the records",
+  kill_switch: "seller paused all payouts",
 };
 export function reason(r: string): string {
   if (REASON[r]) return REASON[r];
-  if (r.startsWith("missing_")) return "missing: " + (CLAIM[r.slice(8)] ?? r.slice(8)).toLowerCase();
-  if (CLAIM[r]) return "failed: " + CLAIM[r].toLowerCase();
+  if (r.startsWith("missing_")) return FAILED[r.slice(8)] ?? "missing " + r.slice(8);
+  if (FAILED[r]) return FAILED[r];
   return r.replace(/_/g, " ");
 }
 

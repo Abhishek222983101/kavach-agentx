@@ -61,9 +61,9 @@ async def handle(app, text: str, via: str) -> str | None:
     if res.get("status") == "executed":
         args = next((p["args"] for p in pending if p["id"] == aid), {})
         amount = f" {R.rs(args['amount_paise'])}" if args.get("amount_paise") else ""
-        await st.out.broadcast_seller(f"✅ #{aid} approved via {via}{amount}; done and the customer has been told.", exclude=via)
+        await st.out.broadcast_seller(f"✅ #{aid} approved via {via}{amount}; done and the customer has been told.", exclude=via, approval_id=aid)
         return f"✅ Approved #{aid}{amount}. Done, and the customer has been told."
     if res.get("status") == "rejected":
-        await st.out.broadcast_seller(f"❌ #{aid} rejected via {via}.", exclude=via)
+        await st.out.broadcast_seller(f"❌ #{aid} rejected via {via}.", exclude=via, approval_id=aid)
         return f"❌ Rejected #{aid}. The customer has been told politely."
     return f"#{aid}: {res.get('status')} ({res.get('reason') or res.get('detail') or ''})".strip()
