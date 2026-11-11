@@ -251,6 +251,8 @@ CREATE SEQUENCE IF NOT EXISTS demo_seq START 1;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
 ALTER TABLE photos ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'seed';
 ALTER TABLE photos ADD COLUMN IF NOT EXISTS media_type text;
+-- Phase 5-lite: what the photo check saw (score 0..1, -1 = check failed, NULL = not checked) and why, in a few words
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS ai_note text;
 
 -- Phase 4b: persistent usage counters (WhatsApp budget survives restarts)
 CREATE TABLE IF NOT EXISTS usage_counters (

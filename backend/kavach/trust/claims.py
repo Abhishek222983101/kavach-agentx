@@ -13,6 +13,14 @@ from kavach.common.contracts import Caller, Claim, ClaimKind, ClaimResult, Sourc
 from kavach.trust.policy import quote_found
 from kavach.trust.rules import DAMAGE_REASONS, EXPECTED_STATE, RELEVANT_CLAUSES
 
+PHOTO_OK, PHOTO_FAIL = 0.6, 0.3          # photo-check score thresholds (Phase 5-lite)
+
+
+def photo_best(photos: list[dict]) -> tuple[float, str] | None:
+    """Best photo-check result on file, or None if no photo was checked. -1 means the check failed."""
+    scored = [(float(p["ai_score"]), p.get("ai_note") or "") for p in photos if p.get("ai_score") is not None]
+    return max(scored, key=lambda x: x[0]) if scored else None
+
 
 @dataclass
 class Facts:
@@ -104,8 +112,17 @@ def check(c: Claim, f: Facts) -> ClaimResult:
         case ClaimKind.evidence:
             if f.args.get("reason") not in DAMAGE_REASONS:
                 return _res(c, True, "no photo needed for this reason")
-            ok = len(f.photos) > 0
-            return _res(c, ok, "photo of the item is on file" if ok else "no photo on file; the damage policy needs a clear photo")
+            if not f.photos:
+                return _res(c, False, "no photo on file; the damage policy needs a clear photo")
+            best = photo_best(f.photos)
+            if best is None:                                   # photo check switched off: a photo on file is enough
+                return _res(c, True, "photo of the item is on file")
+            score, note = best
+            if score >= PHOTO_OK:
+                return _res(c, True, f"photo checked: {note}")
+            if 0 <= score < PHOTO_FAIL:
+                return _res(c, False, f"photo doesn't support the claim: {note}")
+            return _res(c, True, f"photo needs a person to look: {note}")   # unclear or unchecked -> seller (photo_unverified)
 
         case ClaimKind.frequency:
             n, cap = len(f.customer_refunds_30d), 3

@@ -3,7 +3,14 @@
 import type { Order } from "@/lib/api";
 
 export type Expect = "ALLOW" | "ESCALATE" | "BLOCK" | "NONE";
-export type Try = { label: string; text: string; photo?: boolean; expect: Expect; why: string };
+export type Try = { label: string; text: string; photo?: boolean; sample?: string; expect: Expect; why: string };
+
+/** Sample photos served from /samples (the photo check really looks at them). */
+export const SAMPLES: { id: string; label: string }[] = [
+  { id: "payment-screenshot", label: "Payment screenshot" },
+];
+/** Sample of a genuinely damaged item, once one exists in /samples (a real photo; see docs/LIVE-BUILD.md). */
+const HONEST: string | null = SAMPLES.some((x) => x.id === "cracked-cover") ? "cracked-cover" : null;
 
 export const daysSince = (iso: string | null) => (iso ? Math.floor((Date.now() - Date.parse(iso)) / 86400000) : null);
 
@@ -32,8 +39,11 @@ export function triesFor(o: Order): Try[] {
     } else if (d > 7) {
       out.push({ label: "It's damaged (with photo)", text: `My ${item} is damaged, I want my money back`, photo: true, expect: "BLOCK", why: `Delivered ${d} days ago. The window is 7 days.` });
     } else if (rs <= 500) {
-      out.push({ label: "It arrived broken (with photo)", text: `My ${item} arrived broken. Photo attached, please refund.`, photo: true, expect: "ALLOW", why: `Real claim under ₹500 with a photo: refunded instantly.` });
+      out.push(HONEST
+        ? { label: "It arrived broken (with photo)", text: `My ${item} arrived broken. Photo attached, please refund.`, sample: HONEST, expect: "ALLOW", why: "Real claim under ₹500, and the photo check sees the damage: refunded instantly." }
+        : { label: "It arrived broken (demo photo)", text: `My ${item} arrived broken. Photo attached, please refund.`, photo: true, expect: "ESCALATE", why: "A demo photo can't be checked, so a person looks. Attach a real photo with the camera button to see an instant refund." });
       out.push({ label: "Broken, but no photo", text: `My ${item} arrived broken, refund please`, expect: "NONE", why: "Kavach asks for a photo before doing anything." });
+      out.push({ label: "Send a payment screenshot as the photo", text: `My ${item} arrived broken, here is the proof`, sample: "payment-screenshot", expect: "BLOCK", why: "The photo check sees a payment screenshot, not a damaged item." });
     } else {
       out.push({ label: "It arrived broken (with photo)", text: `My ${item} arrived broken. Photo attached, please refund.`, photo: true, expect: "ESCALATE", why: `₹${rs.toLocaleString("en-IN")} is over the ₹500 auto-limit, so the seller decides.` });
     }

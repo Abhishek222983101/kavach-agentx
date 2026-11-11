@@ -29,7 +29,13 @@ from kavach.store.client import NotFound, StoreClient, StoreRefused, StoreUnavai
 from kavach.trust import tokens
 from kavach.trust.claims import Facts, check, rupees
 from kavach.trust.router import decide
+from kavach.trust.claims import PHOTO_OK, photo_best
+from kavach.trust.rules import DAMAGE_REASONS
 from kavach.trust.rules import EXPECTED_STATE, injection_flags, required_for
+
+
+def args_reason(p: ProposalIn) -> str | None:
+    return (p.args or {}).get("reason")
 
 HUMAN_CLEARED = {"over_auto_limit", "over_hard_cap", "refund_frequency", "guard_flag", "instruction_in_record"}
 
@@ -98,6 +104,9 @@ class TrustService:
         auto = int(f.settings.get("auto_limit_paise", 50_000))
         cap = int(f.settings.get("hard_cap_paise", 200_000))
         flags = list(dict.fromkeys([*p.flags, *injection_flags((f.order or {}).get("note", ""))]))
+        best = photo_best(f.photos) if args_reason(p) in DAMAGE_REASONS else None
+        if best is not None and best[0] < PHOTO_OK:
+            flags.append("photo_unverified")        # an unclear or unchecked photo is never auto-paid: the seller looks
         return Risk(amount_paise=amount, auto_limit_paise=auto, over_auto_limit=bool(amount and amount > auto),
                     over_hard_cap=bool(amount and amount > cap), refunds_30d=len(f.customer_refunds_30d),
                     guard_score=p.guard_score, flags=flags)

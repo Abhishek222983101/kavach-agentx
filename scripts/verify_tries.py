@@ -6,6 +6,8 @@ Usage: uv run python scripts/verify_tries.py [API_URL]
 from __future__ import annotations
 
 import asyncio
+import base64
+import pathlib
 import re
 import secrets
 import sys
@@ -34,8 +36,9 @@ def tries_for(o: dict) -> list[tuple[str, str, bool, str]]:
         elif d > 7:
             out.append(("late", f"My {item} is damaged, I want my money back", True, "BLOCK"))
         elif rs <= 500:
-            out.append(("small+photo", f"My {item} arrived broken. Photo attached, please refund.", True, "ALLOW"))
+            out.append(("small+photo", f"My {item} arrived broken. Photo attached, please refund.", True, "ESCALATE"))   # demo photo: unchecked -> seller
             out.append(("small no photo", f"My {item} arrived broken, refund please", False, "NONE"))
+            out.append(("screenshot", f"My {item} arrived broken, here is the proof", "payment-screenshot", "BLOCK"))
         else:
             out.append(("big+photo", f"My {item} arrived broken. Photo attached, please refund.", True, "ESCALATE"))
         if rs > 2000:
@@ -57,7 +60,11 @@ async def main() -> int:
         for item, name, text, photo, want in cases:
             h = {"X-Session": "verify_" + secrets.token_hex(10)}
             await c.get("/api/me", headers=h)
-            r = (await c.post("/api/chat", json={"text": text, "photo": photo}, headers=h)).json()
+            body = {"text": text, "photo": bool(photo)}
+            if isinstance(photo, str):                     # a real sample image: the photo check looks at it
+                raw = (pathlib.Path(__file__).parent.parent / "web/public/samples" / f"{photo}.jpg").read_bytes()
+                body["image"] = "data:image/jpeg;base64," + base64.b64encode(raw).decode()
+            r = (await c.post("/api/chat", json=body, headers=h)).json()
             got = (r.get("outcome") or {}).get("verdict") or "NONE"
             ok = got == want
             bad += not ok

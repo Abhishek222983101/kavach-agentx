@@ -57,7 +57,7 @@ export type Stats = { allowed: number; escalated: number; blocked: number; paise
 
 export const kavach = {
   me: () => call<Me>("/api/me"),
-  chat: (text: string, photo = false) => call<ChatOut>("/api/chat", { method: "POST", json: { text, photo } }),
+  chat: (text: string, photo = false, image?: string) => call<ChatOut>("/api/chat", { method: "POST", json: { text, photo, image } }),
   history: () => call<Msg[]>("/api/chat/history"),
   approvals: (asSeller = false) => call<Approval[]>("/api/approvals", { pin: asSeller }),
   decide: (id: number, decision: "approve" | "reject", asSeller = false, edited_amount_paise?: number) =>

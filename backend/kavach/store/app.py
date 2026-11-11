@@ -180,7 +180,7 @@ def create_app(*, reader_pool: asyncpg.Pool | None = None, writer_pool: asyncpg.
 
     @app.get("/photos")
     async def photos(order_id: int, _: Role = Depends(role_of)):
-        return [dict(r) for r in await rp().fetch("SELECT id, order_id, phash, ai_score, uploaded_at FROM photos WHERE order_id = $1", order_id)]
+        return [dict(r) for r in await rp().fetch("SELECT id, order_id, phash, ai_score, ai_note, uploaded_at FROM photos WHERE order_id = $1", order_id)]
 
     @app.get("/settings")
     async def get_settings(_: Role = Depends(role_of)):

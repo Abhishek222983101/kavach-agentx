@@ -170,6 +170,7 @@ ESC_WHY: dict[str, dict[Lang, str]] = {
     "refund_frequency": {"en": "you had another refund this month", "hinglish": "is mahine ek aur refund hua hai", "hi": "इस महीने एक और रिफ़ंड हुआ है"},
     "guard_flag": {"en": "the seller reviews requests like this", "hinglish": "aisi requests seller khud dekhte hain", "hi": "ऐसे अनुरोध विक्रेता ख़ुद देखते हैं"},
     "instruction_in_record": {"en": "the seller needs to take a look", "hinglish": "seller ko ek baar dekhna hoga", "hi": "विक्रेता को एक बार देखना होगा"},
+    "photo_unverified": {"en": "the photo needs a quick look by a person", "hinglish": "photo ko ek baar seller dekhenge", "hi": "फ़ोटो को एक बार विक्रेता देखेंगे"},
 }
 
 WHAT: dict[str, dict[Lang, str]] = {

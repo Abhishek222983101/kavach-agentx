@@ -7,13 +7,15 @@ import { toast } from "sonner";
 import { kavach, newSession, rupees, ApiError, type Approval, type Me, type Order } from "@/lib/api";
 import { useEvents, type Step } from "@/lib/live";
 import { TOOL, reason } from "@/lib/words";
-import { OTHERS_ORDER, orderLine, triesFor, type Expect, type Try } from "@/lib/tries";
+import { OTHERS_ORDER, SAMPLES, orderLine, triesFor, type Expect, type Try } from "@/lib/tries";
+import { sampleDataUrl, toDataUrl } from "@/lib/image";
 import Xray, { HowItDecides, VERDICT_TEXT, type AnyStep } from "@/components/proof/Xray";
 import { type Verdict } from "@/components/feed/VerdictChip";
 import { HowTo } from "@/components/ui/kit";
 import Markup from "@/components/Markup";
 
-type Line = { dir: "in" | "out"; text: string; trace?: string; verdict?: Verdict; photo?: boolean; expect?: Expect };
+type Line = { dir: "in" | "out"; text: string; trace?: string; verdict?: Verdict; photo?: boolean; img?: string; expect?: Expect };
+type Attach = { name: string; url?: string };   // url = real image (checked); no url = demo photo with nothing to check
 
 const WA = "https://wa.me/14155238886?text=join%20ask-contain";
 const TG = "https://t.me/kavach_agentx_bot";
@@ -44,7 +46,9 @@ export default function Console() {
   const [sel, setSel] = useState<number | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [text, setText] = useState("");
-  const [photo, setPhoto] = useState(false);
+  const [attach, setAttach] = useState<Attach | null>(null);
+  const [picker, setPicker] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [steps, setSteps] = useState<Record<string, AnyStep[]>>({});
   const [focus, setFocus] = useState<string | null>(null);
@@ -72,13 +76,13 @@ export default function Console() {
     if (s.stage === "approve" || s.stage === "execute") kavach.approvals().then(setApprovals).catch(() => {});
   });
 
-  async function send(t: string, withPhoto: boolean, expect?: Expect) {
+  async function send(t: string, a: Attach | null, expect?: Expect) {
     const msg = t.trim();
-    if ((!msg && !withPhoto) || busy) return;
-    setBusy(true); setText(""); setPhoto(false); pendingTrace.current = null; setFocus(null);
-    setLines((l) => [...l, { dir: "in", text: msg || "📷 photo", photo: withPhoto, expect }]);
+    if ((!msg && !a) || busy) return;
+    setBusy(true); setText(""); setAttach(null); setPicker(false); pendingTrace.current = null; setFocus(null);
+    setLines((l) => [...l, { dir: "in", text: msg || "📷 photo", photo: !!a, img: a?.url, expect }]);
     try {
-      const out = await kavach.chat(msg, withPhoto);
+      const out = await kavach.chat(msg, !!a, a?.url);
       const trace = out.trace_id ?? pendingTrace.current ?? undefined;
       if (trace) setFocus(trace);
       const v = (out.outcome?.verdict as Verdict | undefined) ?? (trace ? "NONE" : undefined);
@@ -141,7 +145,7 @@ export default function Console() {
             {lines.map((l, i) => (
               <div key={i} className={`flex ${l.dir === "in" ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed ${l.dir === "in" ? "rounded-br-md bg-bone text-ink" : "rounded-bl-md border border-line bg-panel"}`}>
-                  {l.photo && <span className="mb-1 flex items-center gap-1 text-[12.5px] opacity-70"><Camera size={12} />photo attached</span>}
+                  {l.img ? <img src={l.img} alt="Photo sent" className="mb-1.5 max-h-40 rounded-lg" /> : l.photo && <span className="mb-1 flex items-center gap-1 text-[12.5px] opacity-70"><Camera size={12} />photo attached</span>}
                   <span className="whitespace-pre-wrap">{l.dir === "out" ? <Markup text={l.text} /> : l.text}</span>
                   {l.dir === "out" && l.trace && (
                     <span className="mt-2 flex flex-wrap items-center gap-3 border-t border-line pt-2 text-[13px]">
@@ -169,18 +173,42 @@ export default function Console() {
             <p className="mb-2 text-[12.5px] text-faint">{order ? <>Say about <b className="font-medium text-muted">{order.item}</b>:</> : "Pick an order first"}</p>
             <div className="mb-3 grid gap-1.5">
               {tries.map((t) => (
-                <button key={t.label} disabled={busy} onClick={() => send(t.text, !!t.photo, t.expect)} title={t.why}
+                <button key={t.label} disabled={busy} title={t.why}
+                  onClick={async () => send(t.text, t.sample ? { name: t.sample, url: await sampleDataUrl(t.sample) } : t.photo ? { name: "demo photo" } : null, t.expect)}
                   className="flex items-center justify-between gap-2 rounded-lg border border-line bg-panel px-3 py-2 text-left text-[14px] transition-colors hover:border-line2 hover:bg-panel2 disabled:opacity-50">
-                  <span className="min-w-0">{t.label}{t.photo && <Camera size={13} className="ml-1.5 inline text-faint" />}</span><span className="flex shrink-0 items-center gap-1.5 text-[12px] text-faint">should be<ExpectTag e={t.expect} /></span>
+                  <span className="min-w-0">{t.label}{(t.photo || t.sample) && <Camera size={13} className="ml-1.5 inline text-faint" />}</span><span className="flex shrink-0 items-center gap-1.5 text-[12px] text-faint">should be<ExpectTag e={t.expect} /></span>
                 </button>))}
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); send(text, photo); }} className="flex items-center gap-2">
-              <button type="button" onClick={() => setPhoto((p) => !p)} aria-pressed={photo} title="Attach a demo photo"
-                className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition-colors ${photo ? "border-moss bg-mossbg text-moss" : "border-line text-muted hover:text-bone"}`}>
-                {photo ? <X size={17} /> : <Camera size={17} />}</button>
-              <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1000} placeholder={photo ? "Photo attached. Add a message…" : "Or type anything…"}
+            {picker && !attach && (
+              <div className="mb-2 rounded-xl border border-line bg-panel p-2.5">
+                <div className="mb-2 flex items-center justify-between text-[12.5px] text-muted"><span>Attach a photo. The photo check really looks at it.</span>
+                  <button type="button" onClick={() => setPicker(false)} aria-label="Close"><X size={14} /></button></div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => fileRef.current?.click()} className="flex h-20 w-28 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line2 text-[12.5px] text-muted hover:text-bone">
+                    <Camera size={16} />Your own photo</button>
+                  {SAMPLES.map((x) => (
+                    <button key={x.id} type="button" onClick={async () => setAttach({ name: x.label, url: await sampleDataUrl(x.id) })}
+                      className="relative h-20 w-28 overflow-hidden rounded-lg border border-line text-left">
+                      <img src={`/samples/${x.id}.jpg`} alt="" className="h-full w-full object-cover" />
+                      <span className="absolute inset-x-0 bottom-0 bg-black/60 px-1.5 py-0.5 text-[11px] text-white">{x.label}</span>
+                    </button>))}
+                </div>
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                  onChange={async (e) => { const f = e.target.files?.[0]; if (f) setAttach({ name: f.name, url: await toDataUrl(f) }); e.target.value = ""; }} />
+              </div>)}
+            {attach && (
+              <div className="mb-2 flex items-center gap-2 rounded-lg bg-panel2 px-2 py-1.5 text-[13px]">
+                {attach.url ? <img src={attach.url} alt="" className="h-8 w-8 rounded object-cover" /> : <Camera size={15} />}
+                <span className="min-w-0 flex-1 truncate">{attach.name}</span>
+                <button type="button" onClick={() => setAttach(null)} aria-label="Remove photo" className="text-muted hover:text-bone"><X size={14} /></button>
+              </div>)}
+            <form onSubmit={(e) => { e.preventDefault(); send(text, attach); }} className="flex items-center gap-2">
+              <button type="button" onClick={() => setPicker((p) => !p)} aria-pressed={picker || !!attach} title="Attach a photo"
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition-colors ${attach ? "border-moss bg-mossbg text-moss" : "border-line text-muted hover:text-bone"}`}>
+                <Camera size={17} /></button>
+              <input value={text} onChange={(e) => setText(e.target.value)} maxLength={1000} placeholder={attach ? "Photo attached. Add a message…" : "Or type anything…"}
                 className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-panel px-3.5 text-[15px] outline-none placeholder:text-faint focus:border-line2" />
-              <button type="submit" disabled={busy || (!text.trim() && !photo)} className="btn btn-primary !h-11 !px-4" aria-label="Send"><Send size={16} /></button>
+              <button type="submit" disabled={busy || (!text.trim() && !attach)} className="btn btn-primary !h-11 !px-4" aria-label="Send"><Send size={16} /></button>
             </form>
           </div>
         </section>

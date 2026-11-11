@@ -16,6 +16,7 @@ import asyncpg
 import pytest
 
 os.environ["CALLS_ENABLED"] = "0"          # tests must never be able to ring a real phone, whatever .env says
+os.environ["VISION_ENABLED"] = "0"         # the photo check is tested with a fake (tests/test_vision.py), never the real API
 from kavach.db import migrate as mig  # noqa: E402
 from kavach.db.pool import create_pool
 

@@ -22,9 +22,18 @@ log = logging.getLogger("kavach.telegram")
 class TelegramBot:
     def __init__(self, token: str, *, transport: httpx.AsyncBaseTransport | None = None):
         self._c = httpx.AsyncClient(base_url=f"https://api.telegram.org/bot{token}", timeout=35, transport=transport)
+        self._files = httpx.AsyncClient(base_url=f"https://api.telegram.org/file/bot{token}", timeout=20, transport=transport)
+
+    async def download(self, file_id: str, max_bytes: int) -> bytes | None:
+        info = await self.call("getFile", file_id=file_id)
+        if int(info.get("file_size") or 0) > max_bytes:
+            return None
+        r = await self._files.get("/" + info["file_path"])
+        return r.content if r.status_code == 200 and len(r.content) <= max_bytes else None
 
     async def aclose(self) -> None:
         await self._c.aclose()
+        await self._files.aclose()
 
     async def call(self, method: str, **params) -> dict:
         r = await self._c.post(f"/{method}", json=params)
@@ -48,7 +57,7 @@ async def process_update(app, upd: dict) -> None:
     try:
         await _process_update(app, upd)
     except Exception as e:  # noqa: BLE001 - a customer must never be left in silence
-        log.warning("telegram update failed: %s", type(e).__name__)
+        log.exception("telegram update failed: %s", type(e).__name__)
         chat = str((upd.get("message") or {}).get("chat", {}).get("id", ""))
         if chat and getattr(app.state, "telegram", None) is not None:
             try:
@@ -85,7 +94,8 @@ async def _process_update(app, upd: dict) -> None:
         conv = await resolve(st.pool, st.trust, "telegram", chat_id, name, allow_new=st.caps.allow_new_customer)
     except TooManyNewCustomers:
         return
-    media = [{"kind": "image", "content_type": "image/jpeg", "sha256": msg["photo"][-1]["file_unique_id"]}] if msg.get("photo") else []
+    media = [{"kind": "image", "content_type": "image/jpeg", "sha256": msg["photo"][-1]["file_unique_id"],
+              "tg_file_id": msg["photo"][-1].get("file_id")}] if msg.get("photo") else []
     if msg.get("voice"):
         await st.telegram.send(chat_id, "Voice notes coming soon. Please type your message for now 🙏")
         return

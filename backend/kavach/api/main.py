@@ -42,6 +42,7 @@ class ChatIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(default="", max_length=1000)
     photo: bool = False
+    image: str | None = Field(default=None, max_length=5_600_000)     # data:image/...;base64 (≤ 4 MB), checked by bytes
 
 
 class DecideIn(BaseModel):
@@ -101,6 +102,10 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         await channels.setup(app)
         from kavach.gateway import calls as calls_mod
         await calls_mod.setup(app)
+        if os.getenv("VISION_ENABLED", "1") == "1":
+            from kavach.gateway.media import fetcher
+            st.agent.deps.fetch_media = fetcher(app)          # photo check on (Phase 5-lite)
+            st.channels_started.append("photo-check")
         for hook in st.startup_hooks:          # tests can inject fakes after setup
             await hook(app)
         yield
@@ -152,12 +157,20 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
     @app.post("/api/chat")
     async def chat(body: ChatIn, sess: str = Depends(session)):
         text = clean(body.text)
-        if not text and not body.photo:
+        if not text and not body.photo and not body.image:
             raise HTTPException(422, "empty message")
         conv = await web_conv(sess)
         if not app.state.caps.allow_user(f"web:{sess}"):
             return {"reply": "You've reached today's demo limit for this chat. Please try again tomorrow.", "limited": True}
-        media = [{"kind": "image", "content_type": "image/jpeg", "sha256": f"web-demo-photo-{sess}-{time.time_ns()}"}] if body.photo else []
+        media: list = []
+        if body.image:
+            from kavach.gateway.media import put_data_url
+            entry = put_data_url(body.image)
+            if entry is None:
+                raise HTTPException(422, "That file isn't a photo we can read (JPEG, PNG or WebP, up to 4 MB).")
+            media = [entry]
+        elif body.photo:   # no image attached: recorded as a photo that could not be checked (never auto-paid)
+            media = [{"kind": "image", "content_type": "image/jpeg", "sha256": f"web-demo-photo-{sess}-{time.time_ns()}"}]
         await record_message(app.state.pool, conv, "in", text or "[photo]", media=media or None)
         app.state.bus.message(sess, "in", text or "📷 photo")
         return await app.state.agent.handle(conv, text or "photo", media=media)

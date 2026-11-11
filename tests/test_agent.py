@@ -431,3 +431,39 @@ async def test_plan_shows_what_the_ai_chose_and_what_safety_added(api, fake):
         app.state.bus.emit = orig
     p = seen[0]
     assert p["chosen"] == ["get_order"] and set(p["added"]) == {"track_shipment", "search_policy", "get_photos"} and p["why"] == "need the order"
+
+
+# ───────────── photo check (Phase 5-lite): a fake vision model, never the real API ─────────────
+async def _photo_case(api, fake, monkeypatch, score, note):
+    from kavach.agent import vision
+    c, app = api
+
+    async def fake_check(data, item, reason, **kw):
+        return vision.PhotoCheck(score, note, "x")
+
+    async def fake_fetch(media):
+        return b"\xff\xd8\xff" + b"0" * 50
+    monkeypatch.setattr(vision, "check", fake_check)
+    app.state.agent.deps.fetch_media = fake_fetch
+    try:
+        h = new_session()
+        orders, _ = await me(c, h)
+        fake.next = U("refund", order_id=orders["Phone cover"]["id"], reason="damaged", lang="en")
+        return await say(c, h, "phone cover arrived cracked", photo=True)
+    finally:
+        app.state.agent.deps.fetch_media = None
+
+
+async def test_photo_that_shows_the_damage_is_refunded(api, fake, monkeypatch):
+    out = await _photo_case(api, fake, monkeypatch, 0.9, "cracked black phone cover")
+    assert out["outcome"]["verdict"] == "ALLOW"
+
+
+async def test_payment_screenshot_as_evidence_is_blocked(api, fake, monkeypatch):
+    out = await _photo_case(api, fake, monkeypatch, 0.05, "screenshot or document, not a photo of the item")
+    assert out["outcome"]["verdict"] == "BLOCK" and "evidence" in out["outcome"]["reasons"]
+
+
+async def test_unchecked_photo_is_never_auto_paid(api, fake, monkeypatch):
+    out = await _photo_case(api, fake, monkeypatch, -1.0, "photo check unavailable")
+    assert out["outcome"]["verdict"] == "ESCALATE" and "photo_unverified" in out["outcome"]["reasons"]

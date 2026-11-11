@@ -85,6 +85,7 @@ class Deps:
     send: Send
     notify_seller: NotifySeller
     on_block: Callable[[dict, str, int | None], Awaitable[None]] | None = None   # alert calls: burst detection
+    fetch_media: Callable[[dict], Awaitable[bytes | None]] | None = None          # photo check (None = check off)
 
 
 def _lang(state: TurnState) -> str:
@@ -100,12 +101,6 @@ def build(deps: Deps, checkpointer: Any):
         hist = (s.get("history") or []) + [{"role": "customer", "text": s["text"][:500]}]
         out: dict = {"history": hist[-MAX_HISTORY:], "order": None, "shipment": None, "courier_down": False, "photos": [],
                      "plan": [], "outcome": {}, "reply": "", "u": {}}
-        pending = s.get("pending")
-        for m in s.get("media") or []:
-            if m.get("kind") == "image" and pending and pending.get("order_id"):
-                digest = hashlib.sha256((m.get("sha256") or m.get("url") or str(time.time())).encode()).hexdigest()[:16]
-                await deps.pool.execute("INSERT INTO photos(order_id, phash, source, media_type) VALUES ($1,$2,$3,$4)",
-                                        pending["order_id"], digest, s["conv"]["channel"], m.get("content_type", "image"))
         await bus.emit(s["trace_id"], "ingest", "ok", t0, channel=s["conv"]["channel"],
                        media=len(s.get("media") or []), text=s["text"][:200])
         return out
@@ -188,15 +183,9 @@ def build(deps: Deps, checkpointer: Any):
                 out["returns"] = await deps.store.returns_for_order(order["id"])
             except StoreUnavailable:
                 out["returns"] = []
-        # A photo sent together with the first message (picture + caption) is filed against the order the
-        # message turned out to be about. (ingest only files it when we had already asked for one.)
-        pending = s.get("pending") or {}
-        if mine and pending.get("order_id") != order["id"] and u.intent in ("refund", "return"):
-            for m in s.get("media") or []:
-                if m.get("kind") == "image":
-                    digest = hashlib.sha256((m.get("sha256") or m.get("url") or str(time.time())).encode()).hexdigest()[:16]
-                    await deps.pool.execute("INSERT INTO photos(order_id, phash, source, media_type) VALUES ($1,$2,$3,$4)",
-                                            order["id"], digest, s["conv"]["channel"], m.get("content_type", "image"))
+        # Photos are evidence only for a refund/return on the customer's own order. Each one is checked (Phase 5-lite).
+        if mine and u.intent in ("refund", "return"):
+            await file_photos(s, order, u.reason)
         if mine and "get_photos" in plan:
             try:
                 out["photos"] = await deps.store.photos(order["id"])
@@ -209,6 +198,28 @@ def build(deps: Deps, checkpointer: Any):
                 out["refunds"] = []
         await bus.emit(s["trace_id"], "read", "warn" if out.get("courier_down") else "ok", t1, calls=list(deps.store.calls))
         return out
+
+    async def file_photos(s: TurnState, order: dict, reason: str | None) -> None:
+        from kavach.agent import vision
+        for m in s.get("media") or []:
+            if m.get("kind") != "image":
+                continue
+            digest = hashlib.sha256((m.get("sha256") or m.get("url") or m.get("ref") or str(time.time())).encode()).hexdigest()[:16]
+            if await deps.pool.fetchval("SELECT 1 FROM photos WHERE order_id = $1 AND phash = $2", order["id"], digest):
+                continue                                    # same photo, same order: already filed and checked
+            score, note = None, None
+            if deps.fetch_media is not None:
+                t0 = time.perf_counter()
+                data = await deps.fetch_media(m)
+                if data is None:
+                    score, note = -1.0, "photo could not be downloaded"
+                else:
+                    chk = await vision.check(data, order["item"], reason)
+                    score, note = chk.score, chk.note
+                await bus.emit(s["trace_id"], "photo", "ok" if score >= 0.6 else "warn" if score < 0 or score >= 0.3 else "fail", t0,
+                               score=round(score, 2))
+            await deps.pool.execute("INSERT INTO photos(order_id, phash, source, media_type, ai_score, ai_note) VALUES ($1,$2,$3,$4,$5,$6)",
+                                    order["id"], digest, s["conv"]["channel"], m.get("content_type", "image"), score, note)
 
     # ───────────────────────── act: decide, propose, verify, execute ─────────────────────────
     def _claims(tool: WriteTool, args: dict, u: Understanding, clauses: list, guard_tags: list[str], text: str) -> list[Claim]:

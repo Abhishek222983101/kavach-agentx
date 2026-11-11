@@ -37,6 +37,13 @@ class TwilioWhatsApp:
         self.min_gap_s = min_gap_s
         self.validator = RequestValidator(token)
 
+    async def download(self, url: str, max_bytes: int) -> bytes | None:
+        """Customer media from Twilio (needs the account credentials; Twilio redirects to its CDN)."""
+        if not url.startswith("https://api.twilio.com/"):
+            return None                                   # only ever fetch Twilio's own media URLs
+        r = await self._c.get(url, follow_redirects=True)
+        return r.content if r.status_code == 200 and len(r.content) <= max_bytes else None
+
     async def aclose(self) -> None:
         await self._c.aclose()
 
