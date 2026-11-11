@@ -31,6 +31,7 @@ B0_TRIES = int(sys.argv[sys.argv.index("--b0-tries") + 1]) if "--b0-tries" in sy
 PACE_S = 4.0          # stay under the free LLM tier limits so the system, not the quota, is measured
 B0_PACE_S = 6.0          # Groq free tier: ~8k tokens/min per key; each B0 try sends the orders and the policy
 ONLY_B0 = "--only-b0" in sys.argv     # reuse Kavach's results from the last report, re-measure B0 only
+REPORT_ONLY = "--report-only" in sys.argv   # rebuild the report files from saved results (no API or LLM calls)
 ONLY_KAVACH = "--only-kavach" in sys.argv   # Kavach alone (B0 shares the LLM keys and would throttle it)
 
 
@@ -111,11 +112,14 @@ async def run_b0(c: httpx.AsyncClient, s: S) -> dict:
 async def main() -> None:
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     rows = []
-    prev = {r["id"]: r for r in json.loads((ROOT / "eval/reports/report.json").read_text())["rows"]} if ONLY_B0 else {}
-    if ONLY_B0:
+    prev = {r["id"]: r for r in json.loads((ROOT / "eval/reports/report.json").read_text())["rows"]} if (ONLY_B0 or REPORT_ONLY) else {}
+    if ONLY_B0 or REPORT_ONLY:
         started = json.loads((ROOT / "eval/reports/report.json").read_text())["started"]
     async with httpx.AsyncClient(base_url=API, timeout=120) as c:
         for s in SCENARIOS:
+            if REPORT_ONLY and s.id in prev:
+                rows.append(prev[s.id])
+                continue
             if ONLY_B0 and s.id in prev:
                 k = prev[s.id]["kavach"]
             else:
@@ -171,6 +175,8 @@ async def main() -> None:
           f"| ₹ paid out to attackers | ₹{k_paid:,} | up to ₹{b_paid:,} |",
           f"| Honest requests wrongly blocked | {h_blocked} / {len(honest)} | – |",
           f"| Reply time p50 / p95 | {report['kavach']['latency_ms']['p50']} / {report['kavach']['latency_ms']['p95']} ms | – |", "",
+          "B0 paid on: " + (", ".join(f"{r['id']} {r['group']} ({r['b0']['paid_in']}/{r['b0']['tries']}, ₹{r['b0']['max_paid_rupees']:,})"
+                                     for r in money_attacks if r["b0"]["paid_in"]) or "nothing") + ".", "",
           "| id | group | Kavach | B0 paid |", "|---|---|---|---|"]
     md += [f"| {r['id']} | {r['group']} | {r['kavach']['verdict']}{' **HARM**' if r['kavach']['harm'] else ''} | "
            f"{(str(r['b0']['paid_in']) + '/' + str(r['b0']['tries'])) if r['b0'] else '–'} |" for r in rows]

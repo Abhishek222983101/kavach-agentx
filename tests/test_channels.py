@@ -126,10 +126,10 @@ async def test_seller_approves_on_whatsapp_with_one_reply(chan, fake):
     await wa(c, app, cust, "", "SM" + "f" * 32, media=True)          # sends the photo
     assert "seller" in to(rec, cust)[-1]
     card = to(rec, SELLER)[-1]
-    assert "approval #" in card and "₹1,299" in card and "Reply 1" in card
+    assert "Approval needed · #" in card and "₹1,299" in card and "Reply *1*" in card and "auto-refund limit" in card
     tg_card = [m for m in rec.tg if m["method"] == "sendMessage" and m["chat_id"] == "777"][-1]
     assert tg_card["reply_markup"]["inline_keyboard"][0][0]["text"] == "Approve"
-    assert rec.mail and "approval #" in rec.mail[-1][0]
+    assert rec.mail and "Approval needed · #" in rec.mail[-1][0] and "*" not in rec.mail[-1][0]
     await wa(c, app, SELLER, "1", "SM" + "g" * 32)                   # seller replies "1"
     assert to(rec, SELLER)[-1].startswith("✅ Approved")
     assert "approve kar diya" in to(rec, cust)[-1]

@@ -51,6 +51,14 @@ export default function EvalCard() {
         </div>
       </div>
 
+      {(() => {
+        const fell = attacks.filter((x) => x.b0 && x.b0.paid_in > 0);
+        return fell.length > 0 ? (
+          <p className="mt-3 text-[14px]"><span className="font-medium">What the plain AI fell for:</span>{" "}
+            <span className="text-muted">{fell.map((x) => GROUP[x.group] ?? x.group).join(", ")}. A prompt resists words, but it can&apos;t check
+            evidence or records. Kavach&apos;s verifier can, so the same attacks got nothing.</span></p>) : null;
+      })()}
+
       <div className="mt-4 overflow-x-auto">
         <table className="w-full text-[14px]">
           <thead><tr className="text-left text-[12.5px] text-faint"><th className="pb-1.5 font-normal">Scenario</th><th className="pb-1.5 font-normal">Plain AI paid</th><th className="pb-1.5 font-normal">Kavach</th></tr></thead>

@@ -21,6 +21,11 @@ log = logging.getLogger("kavach.outbound")
 ChannelSender = Callable[[str, str, list[tuple[str, str]] | None], Awaitable[None]]   # (user_id, text, buttons)
 
 
+HELD = {"over_auto_limit": "it's above your auto-refund limit", "over_hard_cap": "it's above your ₹2,000 hard cap",
+        "refund_frequency": "this customer had another refund this month", "guard_flag": "the message looked like pressure or a scam",
+        "photo_unverified": "the photo needs a quick look", "instruction_in_record": "the order note contains a hidden instruction"}
+
+
 def is_test_session(conv: dict) -> bool:
     """Sessions made by our own scripts (verify_*, test_*, eval_*) stay off real seller channels."""
     return conv.get("channel") == "web" and str(conv.get("user_id", "")).startswith(("verify_", "test_", "eval_"))
@@ -55,9 +60,11 @@ class Outbound:
         if card["kind"] == "approval":
             amount = card["args"].get("amount_paise")
             what = f"{R.rs(amount)} refund" if amount else card["tool"].replace("_", " ")
-            text = (f"🛡 Kavach: approval #{card['approval_id']}\n{who} — {what} on order {card['order']['id']} ({card['order']['item']}).\n"
-                    f"All checks passed; needs you because it's over your auto-limit or flagged.\n"
-                    f"Reply 1 to approve, 2 to reject.")
+            why = ", ".join(HELD.get(r, r.replace("_", " ")) for r in (card.get("reasons") or [])) or "it needs a person"
+            link = f"\nReceipt: {R.WEB}/proof/{card['trace_id']}" if card.get("trace_id") else ""
+            text = (f"🛡 *Approval needed · #{card['approval_id']}*\n{who} wants a {what} on order {card['order']['id']} ({card['order']['item']}).\n"
+                    f"Records check out ✓ · held because {why}.\n\n"
+                    f"Reply *1* to approve or *2* to reject.{link}")
             return text, [("Approve", f"approve:{card['approval_id']}"), ("Reject", f"reject:{card['approval_id']}")]
         if card["kind"] == "human":
             return f"🙋 Kavach: {who} wants to talk to you.\n{card.get('summary', '')}", None
@@ -75,9 +82,10 @@ class Outbound:
         skip = {"whatsapp"} if conv.get("channel") == "web" else set()
         if self.mailer is not None:
             import asyncio
-            subject = text.splitlines()[0].replace("🛡 ", "").replace("⚠️ ", "").replace("🙋 ", "")
-            task = asyncio.create_task(self.mailer.send(subject, text.replace("Reply 1 to approve, 2 to reject.",
-                                                                              "Approve or reject on WhatsApp/Telegram or in the console.")))
+            plain = text.replace("*", "")                    # email: no chat markup
+            subject = "Kavach: " + plain.splitlines()[0].replace("🛡 ", "").replace("⚠️ ", "").replace("🙋 ", "").removeprefix("Kavach: ")
+            task = asyncio.create_task(self.mailer.send(subject, plain.replace("Reply 1 to approve or 2 to reject.",
+                                                                               "Approve or reject on WhatsApp/Telegram or in the seller console.")))
             self._mail_tasks.add(task)
             task.add_done_callback(self._mail_tasks.discard)
         for channel, user_id in self.seller_targets:
