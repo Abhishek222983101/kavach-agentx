@@ -288,6 +288,23 @@ class TrustService:
                               {"proposal_id": req.proposal_id, "reason": reason, "args": req.args})
         return ExecuteOut(proposal_id=req.proposal_id, status="refused", reason=reason)
 
+    # ───────────────────────── demo provisioning ─────────────────────────
+    async def provision(self, channel: str, channel_id: str, name: str | None) -> dict:
+        """Find or create the demo customer behind a chat identity (fresh scenario orders, dated from now)."""
+        from kavach.db.seed import provision as _provision
+
+        async with self.pool.acquire() as conn:
+            if channel == "whatsapp":
+                row = await conn.fetchrow("SELECT id, name FROM customers WHERE phone = $1", channel_id.removeprefix("whatsapp:"))
+            elif channel == "telegram" and channel_id.isdigit():
+                row = await conn.fetchrow("SELECT id, name FROM customers WHERE tg_id = $1", int(channel_id))
+            else:
+                row = None
+            if row:
+                return {"customer_id": row["id"], "name": row["name"], "created": False}
+            out = await _provision(conn, channel=channel, channel_id=channel_id, name=name)
+            return {**out, "created": True}
+
     # ───────────────────────── seller settings ─────────────────────────
     async def set_setting(self, name: str, value: bool | int, via: str) -> dict:
         out = await self.store.set_setting(name, value)

@@ -244,3 +244,10 @@ BEGIN RAISE EXCEPTION 'audit_log is append-only'; END $$;
 DROP TRIGGER IF EXISTS audit_no_update ON audit_log;
 CREATE TRIGGER audit_no_update BEFORE UPDATE OR DELETE ON audit_log
   FOR EACH ROW EXECUTE FUNCTION audit_forbid_change();
+
+-- ───────────────────────── Phase 3 additions ─────────────────────────
+-- Each new WhatsApp/Telegram/web user gets their own fresh copy of the demo scenario orders.
+CREATE SEQUENCE IF NOT EXISTS demo_seq START 1;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'seed';
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS media_type text;

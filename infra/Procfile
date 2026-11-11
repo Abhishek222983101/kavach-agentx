@@ -1,2 +1,3 @@
 store: uv run uvicorn --factory kavach.store.app:create_app --host 127.0.0.1 --port 8200 --no-server-header --log-level warning
 trust: uv run uvicorn --factory kavach.trust.app:create_app --host 127.0.0.1 --port 8100 --no-server-header --log-level warning
+api: uv run uvicorn --factory kavach.api.main:create_app --host 127.0.0.1 --port 8000 --no-server-header --log-level warning

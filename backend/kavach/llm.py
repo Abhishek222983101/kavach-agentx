@@ -29,11 +29,16 @@ def _keys(var: str) -> list[str]:
     return [k.strip() for k in os.getenv(var, "").split(",") if k.strip()]
 
 
+_ENV = {"gemini": "GEMINI_API_KEYS", "groq": "GROQ_API_KEYS", "anthropic": "ANTHROPIC_API_KEY"}
+
+
 def providers() -> list[Provider]:
-    out = [Provider("gemini", k) for k in _keys("GEMINI_API_KEYS")]
-    out += [Provider("groq", k) for k in _keys("GROQ_API_KEYS")]
-    out += [Provider("anthropic", k) for k in _keys("ANTHROPIC_API_KEY")]
-    return out
+    """Providers in LLM_ORDER (default: Groq first for latency, then Gemini, then Anthropic)."""
+    order = [n.strip() for n in os.getenv("LLM_ORDER", "groq,gemini,anthropic").split(",") if n.strip() in _ENV]
+    for n in _ENV:  # any provider missing from LLM_ORDER still goes last
+        if n not in order:
+            order.append(n)
+    return [Provider(n, k) for n in order for k in _keys(_ENV[n])]
 
 
 async def _call(client: httpx.AsyncClient, p: Provider, system: str, user: str, max_tokens: int, json_mode: bool) -> str:
@@ -84,3 +89,20 @@ async def complete(system: str, user: str, *, max_tokens: int = 512, json_mode: 
     finally:
         if own:
             await client.aclose()
+
+
+async def complete_json(system: str, user: str, *, max_tokens: int = 700,
+                        client: httpx.AsyncClient | None = None) -> tuple[dict, str]:
+    """Like `complete`, but parses a JSON object. Tolerates ```json fences. Raises LLMUnavailable if no
+    provider returns parseable JSON."""
+    import json
+    import re
+
+    text, who = await complete(system, user, max_tokens=max_tokens, json_mode=True, client=client)
+    m = re.search(r"\{.*\}", text, re.S)
+    if not m:
+        raise LLMUnavailable(f"{who}: no JSON object in reply")
+    try:
+        return json.loads(m.group(0)), who
+    except json.JSONDecodeError as e:
+        raise LLMUnavailable(f"{who}: invalid JSON") from e

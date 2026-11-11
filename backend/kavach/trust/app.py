@@ -11,7 +11,7 @@ from typing import Literal
 import asyncpg
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from kavach.common.canonical import constant_time_equal
 from kavach.common.config import require, settings
@@ -26,6 +26,13 @@ class SettingIn(BaseModel):
     name: Literal["kill_switch", "auto_limit_paise", "window_days", "hard_cap_paise"]
     value: bool | int
     via: Literal["console", "whatsapp", "telegram", "voice", "test"] = "console"
+
+
+class ProvisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    channel: Literal["whatsapp", "telegram", "web", "test"]
+    channel_id: str = Field(min_length=1, max_length=128)
+    name: str | None = Field(default=None, max_length=60)
 
 
 def create_app(*, service: TrustService | None = None, api_key: str | None = None, seller_pin: str | None = None) -> FastAPI:
@@ -94,6 +101,10 @@ def create_app(*, service: TrustService | None = None, api_key: str | None = Non
         if not pin or not constant_time_equal(x_seller_pin, pin):
             raise HTTPException(403, "seller PIN required")
         return await svc().set_setting(body.name, body.value, body.via)
+
+    @app.post("/demo/provision", dependencies=[Depends(auth)])
+    async def provision(body: ProvisionIn):
+        return await svc().provision(body.channel, body.channel_id, body.name)
 
     @app.get("/audit/verify", dependencies=[Depends(auth)])
     async def audit_verify():

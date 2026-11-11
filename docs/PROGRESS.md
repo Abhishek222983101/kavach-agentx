@@ -8,7 +8,8 @@
 | 0 | Foundation: code layout, database, permissions, tamper-proof log | ✅ done (11 Nov, 22:52) |
 | 1 | Mock online store (orders, couriers, payments) | ✅ done (11 Nov, 22:56) |
 | 2 | The checker (verifier) and the only component allowed to act (executor) | ✅ done (11 Nov, 23:08) |
-| 3 | The AI agent (understands messages, plans, uses tools) | ⬜ waiting for go |
+| 3 | The AI agent (understands messages, plans, uses tools) | ✅ done (11 Nov, 23:58) |
+| 4 | WhatsApp, Telegram, email, seller approvals on the phone | ⏳ in progress |
 
 ---
 
@@ -129,3 +130,63 @@ One separate service, the **trust service**, does four jobs. It is the only part
   - policy search found the wrong rule for "can I return food?". It now understands word endings and common Hinglish words (wapas, khana, pata, din…).
 - **Speed:** the first check after idle takes about 2 s, because the database wakes up. Warm checks take about 1 s from this laptop, almost all of it network trips to the Singapore database. Running the backend in the same region (Render Singapore) should bring this to tens of milliseconds. That's now a deployment requirement.
 - **Security scans:** bandit, semgrep (Python, secrets, OWASP Top 10, JWT) and pip-audit all clean.
+
+---
+
+## Phase 3: the AI agent
+
+**What we built**
+- **An agent built with LangGraph.** Every customer message goes through 6 visible steps, and each one appears on the live "X-ray" with its timing:
+  1. **Ingest:** saves the message; a photo is attached to the order it's about.
+  2. **Guard:** a manipulation check. For now it's transparent rules; Phase 5 swaps in the trained model behind the same interface. It tags "owner said", "30-day" claims, instructions aimed at the agent, threats/pressure and impersonation. It can only add caution.
+  3. **Understand + plan:** one AI call (Groq first, about 1 s; Gemini as backup) returns a checked JSON plan: intent, order, amount, reason, language, what the customer *claims*, and which tools to call. Obvious messages ("order 1047 kahan hai", or replying "2" to a list) skip the AI entirely.
+  4. **Read:** calls the store's lookup tools (order, courier, policy, photos). It can only read.
+  5. **Act:**
+     - Answers questions directly.
+     - For a refund, return, address change or cancellation, it builds a **proposal with every required fact** and sends it to the trust service, then follows the verdict.
+     - Customer claims like "owner ne bola" or "30 din" are forwarded **to be checked, never trusted**.
+  6. **Respond:** the reply is built from verified records (amounts, dates, order state, policy text) in **English, Hinglish or Hindi**, matching the customer. The AI never writes a rupee figure.
+- **Memory:**
+  - the conversation is remembered across messages ("send a photo" → photo arrives → the agent knows which order);
+  - escalations wait for the seller in a **paused approval thread that survives a server restart**;
+  - seller decisions are stored as precedents.
+- **Every new user gets their own fresh demo store.** The 8 scenario orders are dated from the moment they first write, so "delivered 3 days ago" is still true on judging day, and testers never collide.
+- **Judges can act as the seller for their own chat** (approve or reject their own escalated refund). The real seller uses a PIN, and WhatsApp/Telegram in Phase 4.
+- **Guardrails around the AI**, because it will sometimes be wrong:
+  - an order number the customer typed, or an item they named ("kurta"), overrides the AI's guess;
+  - a damaged-item refund asks for a photo *before* proposing;
+  - instructions aimed at the agent ("ignore all previous instructions…") are refused outright and flagged to the seller;
+  - if every AI provider is down, a keyword fallback keeps working, and "owner said" claims are still caught by the guard.
+- **Live events** stream to the web page (Server-Sent Events): a private stream per chat, plus a public feed with no message text or phone numbers.
+
+**Proof**
+- **55 automated tests pass** (16 new for the agent), run 3 times, stable. They cover:
+  - greeting;
+  - tracking without the AI;
+  - a ₹299 refund in one message;
+  - a damaged speaker: photo request, then escalation, then the seller approves, then the customer is told, then a second approval is refused;
+  - "owner said 30 days" blocked with the real rule;
+  - someone else's order: no details leaked, refund blocked;
+  - safe mode with no AI;
+  - choosing an order from a list;
+  - kill switch;
+  - you can't approve someone else's request;
+  - **an approval survives a full restart (AT-14)**;
+  - memory across messages;
+  - the injection refusal;
+  - caps.
+- **Live run with the real AI (Groq) on the real database**, 8 messages in a row:
+  - Hinglish tracking;
+  - ₹299 refunded;
+  - "owner said 30 days" blocked, naming the kurta order and quoting "Delivery ke 7 din ke andar return ho sakta hai";
+  - the speaker asked for a photo, then went to the seller;
+  - a mithai return in Hindi refused in Hindi;
+  - the injection refused.
+
+  Audit chain intact, no errors in the logs.
+- **Problems found while testing, and fixed:**
+  - in one live run the AI picked the wrong order (the phone cover instead of the kurta). Added the item-name check, and block messages now name the order;
+  - a refusal on someone else's order mentioned their item. It no longer does;
+  - added daily caps on new demo accounts and a limit on live viewers, so the demo can't be flooded.
+- **Speed:** 2–7 s per message from this laptop. One database round trip to Singapore is **72 ms**, and a refund needs about 50–80 of them across the three services. Deployed in Singapore next to the database, a round trip should be about 1 ms, so we expect about 1–3 s, mostly the AI call. This will be measured in Phase 7, not assumed.
+- **Security scans:** bandit, semgrep (Python, secrets, OWASP Top 10, FastAPI) and pip-audit all clean.

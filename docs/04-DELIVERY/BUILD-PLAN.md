@@ -15,7 +15,7 @@ This file only tracks status.
 | 0 | Repo, env, DB, contracts | ✅ | 22:52; 7 tests |
 | 1 | Mock Store API | ✅ | 22:56; Neon seeded |
 | 2 | Verifier, executor, audit | ✅ | 23:08; AT-01…13 + 13 more; trust service (D-15) |
-| 3 | Agent graph + LLM + web chat | ⬜ | |
+| 3 | Agent graph + LLM + web chat | ✅ | 23:58; 55 tests; live run with Groq |
 | 4 | Channels | ⬜ | |
 | 5 | ML guard (+ seller preference) | ⬜ | GPU check first |
 | 6 | Web console | ⬜ | |

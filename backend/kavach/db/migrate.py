@@ -44,6 +44,19 @@ async def ensure_role(conn: asyncpg.Connection, role: str, password: str) -> Non
     await conn.execute(f"{verb} ROLE {role} WITH LOGIN PASSWORD '{password}'")
 
 
+CHECKPOINT_TABLES = ("checkpoint_migrations", "checkpoints", "checkpoint_blobs", "checkpoint_writes")
+
+
+async def _checkpointer_tables(owner_dsn: str, conn: asyncpg.Connection) -> None:
+    """Create LangGraph's Postgres checkpoint tables (as owner) and let the agent's reader role use them."""
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+    async with AsyncPostgresSaver.from_conn_string(owner_dsn) as saver:
+        await saver.setup()
+    for t in CHECKPOINT_TABLES:  # fixed names, not user input
+        await conn.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON {t} TO kavach_reader")
+
+
 async def migrate(owner_dsn: str, passwords: dict[str, str], reset: bool = False, hard: bool = False) -> None:
     conn = await asyncpg.connect(owner_dsn)
     try:
@@ -51,6 +64,7 @@ async def migrate(owner_dsn: str, passwords: dict[str, str], reset: bool = False
         for role in ROLES:
             await ensure_role(conn, role, passwords[role])
         await conn.execute((HERE / "roles.sql").read_text())
+        await _checkpointer_tables(owner_dsn, conn)
         if reset:
             await conn.execute("TRUNCATE " + ", ".join(DATA_TABLES) + " RESTART IDENTITY CASCADE")
             if hard:  # TRUNCATE bypasses the row trigger by design; only the owner can do it

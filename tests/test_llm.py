@@ -8,6 +8,7 @@ from kavach import llm
 async def test_falls_back_when_first_provider_rate_limited(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEYS", "g1,g2")
     monkeypatch.setenv("GROQ_API_KEYS", "q1")
+    monkeypatch.setenv("LLM_ORDER", "gemini,groq")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     calls = []
 

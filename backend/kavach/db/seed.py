@@ -112,6 +112,10 @@ async def load(conn: asyncpg.Connection, now: datetime | None = None) -> dict[st
     phones = demo_phones()
     async with conn.transaction():
         await conn.execute("TRUNCATE " + ", ".join(DATA_TABLES) + " RESTART IDENTITY CASCADE")
+        # forget agent conversation memory too (tables exist once migrate has run)
+        if await conn.fetchval("SELECT to_regclass('checkpoints') IS NOT NULL"):
+            await conn.execute("TRUNCATE checkpoints, checkpoint_blobs, checkpoint_writes")
+        await conn.execute("SELECT setval('demo_seq', 1, false)")
         await conn.executemany("INSERT INTO policy_clauses(id, title, text, text_hinglish) VALUES ($1,$2,$3,$4)", POLICY)
         await conn.executemany("INSERT INTO settings(key, value) VALUES ($1, $2::jsonb)",
                                [(k, v) for k, v in SETTINGS.items()])
@@ -161,6 +165,51 @@ async def load(conn: asyncpg.Connection, now: datetime | None = None) -> dict[st
         await conn.execute("UPDATE orders SET refunded_paise = refunded_paise + 10000 WHERE id = $1", neha_other)
         await conn.fetchval("SELECT audit_append('seed', 'demo store loaded', $1::jsonb)", {"orders": len(rows)})
     return {"orders": len(rows), "customers": len(CUSTOMERS), "clauses": len(POLICY)}
+
+
+# Scenario orders every new user gets a fresh copy of: (template id, days since delivery or None)
+DEMO_TEMPLATES = (1042, 1043, 1044, 1046, 1047, 1048, 1049, 1054)
+
+
+async def provision(conn: asyncpg.Connection, *, channel: str, channel_id: str, name: str | None = None,
+                    now: datetime | None = None) -> dict:
+    """Create a demo customer for a new WhatsApp/Telegram/web user with their own copies of the scenario
+    orders, dated relative to *now* (so "delivered 3 days ago" stays true on judging day).
+    Order ids are 2NNNx: 2 + 4-digit user number + slot digit, e.g. user 3 gets 200030..200037."""
+    now = now or datetime.now(timezone.utc)
+    by_id = {s[0]: s for s in SCENARIOS}
+    async with conn.transaction():
+        n = await conn.fetchval("SELECT nextval('demo_seq')")
+        cid = f"d{n:04d}"
+        phone = channel_id.removeprefix("whatsapp:") if channel == "whatsapp" else None
+        tg_id = int(channel_id) if channel == "telegram" and channel_id.isdigit() else None
+        display = (name or "").strip()[:40] or f"Demo customer {n}"
+        await conn.execute("INSERT INTO customers(id, name, phone, tg_id, lang, is_demo) VALUES ($1,$2,$3,$4,'hinglish',true)",
+                           cid, display, phone, tg_id)
+        orders, o_rows, p_rows, s_rows = [], [], [], []
+        for slot, tid in enumerate(DEMO_TEMPLATES):
+            _, _, item, cat, rupees, status, days, cod, perish, note = by_id[tid]
+            oid = 200000 + n * 10 + slot
+            created = now - timedelta(days=(days or 0) + 4)
+            awb = None if status in ("placed", "packed") else f"DLV{oid:08d}"
+            o_rows.append((oid, cid, item, cat, rupees * 100, status, cod, perish, note, ADDR["c01"], awb, created))
+            p_rows.append((f"pay_{oid}", oid, rupees * 100, "cod" if cod else "upi"))
+            if awb:
+                delivered_at = now - timedelta(days=days) if days is not None else None
+                ship_status = "delivered" if status == "delivered" else "in_transit"
+                events = [{"at": (created + timedelta(days=1)).isoformat(), "status": "picked_up", "where": "Bhiwandi hub"},
+                          {"at": (delivered_at or now - timedelta(hours=6)).isoformat(), "status": ship_status,
+                           "where": "Mumbai" if delivered_at else "Pune hub"}]
+                s_rows.append((awb, oid, ship_status, delivered_at, events))
+            orders.append({"id": oid, "template": tid, "item": item})
+        await conn.executemany(
+            """INSERT INTO orders(id, customer_id, item, category, paid_paise, status, cod, perishable, note, address, awb, created_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""", o_rows)
+        await conn.executemany("INSERT INTO payments(id, order_id, amount_paise, method) VALUES ($1,$2,$3,$4)", p_rows)
+        await conn.executemany("INSERT INTO shipments(awb, order_id, status, delivered_at, events) VALUES ($1,$2,$3,$4,$5::jsonb)", s_rows)
+        await conn.fetchval("SELECT audit_append('provision', $1, $2::jsonb)", f"demo customer {cid} created for {channel}",
+                            {"customer_id": cid, "channel": channel, "orders": [o["id"] for o in orders]})
+    return {"customer_id": cid, "name": display, "orders": orders}
 
 
 def main() -> None:
