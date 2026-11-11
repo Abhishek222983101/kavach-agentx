@@ -11,6 +11,13 @@ confidence: low
 > **How to fill:** At the end of every session, add an entry. Use the owner's words for the request, then your interpretation. Never rewrite history.
 > **Truth labels:** `[CONFIRMED]` · `[OBSERVED]` · `[ASSUMED]` · `[UNKNOWN]` · `[DECISION]`
 
+## 2026-11-11 · docs polish + repo (22:05)
+
+- **Asked:** landing exactly like Tessera with Kavach content and a light/dark toggle (ETHGlobal); free hosting on Vercel + Render; reuse keys from Voight/ETHGlobal; create the repo; review design links and Higgsfield.
+- **Changed:** UI-UX-BRIEF rewritten around Tessera (old one archived); architecture updated (D-02 Next.js, D-05 Neon, D-08 Vercel+Render+keepalive, D-12 distilled guard for 512 MB, D-13 Tessera UI); TRD/INTEGRATIONS/DECISIONS/OPEN-QUESTIONS updated; Gemini (`gemini-3-flash-preview`) and Groq (2 keys) verified live; private repo `Abhishek222983101/kavach-agentx` created with the first commit.
+- **Open:** Q-01, Q-03, Q-05, Q-06, Q-07, Q-09, Q-11 (headline), Q-12 (repo visibility).
+- **Next:** Phase 0 build.
+
 ## 2026-11-11 · design session
 
 - **Asked (owner's words, condensed):** "make a banger system arch … with build plan phase by phase … ML that is real, not bogus … WhatsApp and Telegram both … phone calling for serious issues … keep it live till 16 Nov … few solid features over 10 unnecessary ones."
