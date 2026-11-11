@@ -103,7 +103,7 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 *Goal: a "damaged item" photo must actually show the item and the damage. Today any image counts, even a payment screenshot.*
 
 
-**What was built (done 05:05):**
+**What was built (done 04:40):**
 - **The AI looks at the photo, but our rules decide.** Gemini answers fixed yes/no questions: is it a photo of a product? Is it the ordered item? Does it show the damage? Is it a screenshot or a document? Kavach's own code turns the answers into a score. The model can't talk a photo into passing, and text written inside an image is ignored.
 - **What the verifier does with the score.**
   - Clear match → counts as evidence.

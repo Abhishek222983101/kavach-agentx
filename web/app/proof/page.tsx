@@ -9,6 +9,7 @@ import { TOOL, ago, reason } from "@/lib/words";
 import { VERDICT_TEXT } from "@/components/proof/Xray";
 import { type Verdict } from "@/components/feed/VerdictChip";
 import { HowTo } from "@/components/ui/kit";
+import EvalCard from "@/components/proof/EvalCard";
 
 const short = (h?: string) => (h ? h.slice(0, 10) + "…" + h.slice(-6) : "");
 
@@ -176,6 +177,8 @@ export default function ProofPage() {
             {audit?.latest_blocked_trace && <Link href={`/proof/${audit.latest_blocked_trace}`} className="btn btn-ghost">Open a real blocked one<ArrowUpRight size={14} /></Link>}
           </div>
         </Proof>
+
+        <EvalCard />
 
         <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-line px-5 py-3.5"><h2 className="text-[16px] font-semibold">Every decision, live</h2><span className="text-[13px] text-faint">web · WhatsApp · Telegram</span></div>

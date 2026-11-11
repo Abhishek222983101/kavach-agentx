@@ -106,13 +106,14 @@ async def _process_update(app, upd: dict) -> None:
         return
     if text.split("@")[0] == "/orders":
         orders = await st.store.orders(conv["customer_id"], limit=10)
-        lines = [f"• {o['item']}: order {o['id']} ({o['status']})" for o in orders]
-        await st.telegram.send(chat_id, "Your demo orders:\n" + "\n".join(lines) +
-                               "\n\nTry: \"where is my earphone?\", \"phone cover ka refund chahiye\", \"speaker toota hua aaya\".")
+        lines = [f"• *{o['item']}* · ₹{o['paid_paise'] // 100:,} · {o['status']} · #{o['id']}" for o in orders]
+        await st.telegram.send(chat_id, "*Your demo orders*\n" + "\n".join(lines) +
+                               "\n\n_Try: \"where is my earphones?\", \"phone cover ka refund chahiye\", \"speaker toota hua aaya\" (send a photo)._")
         return
     if text.split("@")[0] == "/help":
-        await st.telegram.send(chat_id, "Ask me in English, Hinglish or Hindi: track an order, return something, or get a refund. "
-                                        "Every refund is checked against the shop's records first. /orders shows your demo orders.")
+        await st.telegram.send(chat_id, "*How I can help*\n• track an order\n• return or refund an item (send a photo if it's damaged)\n"
+                                        "• change the address or cancel\n\nWrite in English, Hinglish or Hindi. Every refund is checked against "
+                                        "the shop's records first.\n\n/orders shows your demo orders.")
         return
     if text.split("@")[0] == "/start":
         text = "namaste"
