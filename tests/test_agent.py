@@ -321,3 +321,19 @@ async def test_transient_failure_is_retried_then_customer_is_never_left_in_silen
     assert "dobara bhejiye" in out["reply"] or "send it again" in out["reply"]
     hist = (await c.get("/api/chat/history", headers=h)).json()
     assert hist[-1]["text"] == out["reply"]
+
+
+async def test_follow_up_after_a_return_explains_instead_of_booking_again(api, fake):
+    c, app = api
+    h = new_session()
+    orders, _ = await me(c, h)
+    hp = orders["Noise-cancelling headphones"]
+    fake.next = U("refund", order_id=hp["id"], reason="changed_mind")
+    first = await say(c, h, "headphones ka refund chahiye")
+    assert first["outcome"]["tool"] == "create_return_pickup" and "📋" in first["reply"]
+    fake.next = U("refund", order_id=hp["id"], reason="other", lang="en")
+    again = await say(c, h, "no bro i want my money right now its an emergency")
+    assert again["outcome"]["reasons"] == ["already_in_progress"] and "already booked" in again["reply"]
+    assert app.state.out.seller_feed[0]["kind"] == "human"                      # seller told it's urgent
+    n = await app.state.pool.fetchval("SELECT count(*) FROM returns WHERE order_id = $1", hp["id"])
+    assert n == 1                                                              # exactly one pickup booked

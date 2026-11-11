@@ -169,6 +169,11 @@ def create_app(*, reader_pool: asyncpg.Pool | None = None, writer_pool: asyncpg.
             raise HTTPException(400, "order_id or customer_id required")
         return [dict(r) for r in rows]
 
+    @app.get("/returns")
+    async def returns(order_id: int, _: Role = Depends(role_of)):
+        rows = await rp().fetch("SELECT id, order_id, reason, status, created_at FROM returns WHERE order_id = $1 ORDER BY created_at", order_id)
+        return [dict(r) for r in rows]
+
     @app.get("/policies")
     async def policies(_: Role = Depends(role_of)):
         return [dict(r) for r in await rp().fetch("SELECT id, title, text, text_hinglish FROM policy_clauses ORDER BY id")]

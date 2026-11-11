@@ -25,6 +25,7 @@ class Facts:
     order_refunds: list[dict] = field(default_factory=list)
     customer_refunds_30d: list[dict] = field(default_factory=list)
     photos: list[dict] = field(default_factory=list)
+    order_returns: list[dict] = field(default_factory=list)
     clauses: dict[int, dict] = field(default_factory=dict)
     settings: dict = field(default_factory=dict)
     now: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -91,7 +92,8 @@ def check(c: Claim, f: Facts) -> ClaimResult:
             if f.tool is WriteTool.issue_refund:
                 ok = not f.order_refunds and o["refunded_paise"] == 0
                 return _res(c, ok, "no earlier refund on this order" if ok else f"an earlier refund of {rupees(o['refunded_paise'])} already exists on this order")
-            return _res(c, True, "no earlier return on this order")  # returns are de-duplicated by the store's idempotency key
+            ok = not f.order_returns
+            return _res(c, ok, "no earlier return on this order" if ok else "a return pickup is already booked for this order")
 
         case ClaimKind.eligibility:
             if o["status"] == "cancelled":

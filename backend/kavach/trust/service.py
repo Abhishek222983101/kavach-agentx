@@ -81,12 +81,13 @@ class TrustService:
             # round 2: everything that needs the order, in parallel
             refund, ret = p.tool is WriteTool.issue_refund, p.tool in (WriteTool.issue_refund, WriteTool.create_return_pickup)
             need_ship = EXPECTED_STATE[p.tool] == "delivered" and f.order.get("awb")
-            f.customer, f.shipment, f.order_refunds, f.customer_refunds_30d, f.photos = await asyncio.gather(
+            f.customer, f.shipment, f.order_refunds, f.customer_refunds_30d, f.photos, f.order_returns = await asyncio.gather(
                 self.store.customer(f.order["customer_id"]),
                 self.store.shipment(f.order["awb"]) if need_ship else asyncio.sleep(0, None),
                 self.store.refunds_for_order(oid) if refund else none(),
                 self.store.refunds_for_customer(p.caller.customer_id, int(f.settings.get("freq_window_days", 30))) if refund else none(),
                 self.store.photos(oid) if ret else none(),
+                self.store.returns_for_order(oid) if p.tool is WriteTool.create_return_pickup else none(),
             )
         except StoreUnavailable:
             return f, True

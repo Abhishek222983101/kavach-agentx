@@ -316,3 +316,15 @@ async def test_trust_http_requires_key_and_seller_pin(env):
         bad_args = {**body, "args": {"order_id": 1051, "amount_paise": -5}}
         assert (await c.post("/verify", json=bad_args, headers=h)).status_code == 422
         assert (await c.get("/audit/verify", headers=h)).json() == {"intact": True, "first_broken_row": None}
+
+
+async def test_second_return_on_the_same_order_is_blocked(env):
+    svc, *_ = env
+    ret = lambda: ProposalIn(trace_id=f"t-r{time.time_ns()}", tool="create_return_pickup", caller=caller("c01"),
+                             args={"order_id": 1051, "reason": "changed_mind"},
+                             claims=[Claim(kind=k) for k in ("ownership", "state", "temporal", "eligibility", "duplicate")]
+                             + [Claim(kind="policy", source="policy", clause_id=1, quote=CLAUSE1)])
+    v = await svc.verify(ret())
+    assert (await svc.execute(ExecuteIn(proposal_id=v.proposal_id, tool="create_return_pickup", args=v.results and ret().args, token=v.token))).status == "executed"
+    v2 = await svc.verify(ret())
+    assert v2.verdict is Verdict.BLOCK and "duplicate" in v2.reasons

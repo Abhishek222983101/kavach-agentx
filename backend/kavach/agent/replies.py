@@ -188,3 +188,24 @@ def days_ago(when: str | datetime | None, lang: Lang) -> tuple[str, str]:
     rel = {"en": "today" if d == 0 else f"{d} day{'s' if d != 1 else ''} ago",
            "hinglish": "aaj" if d == 0 else f"{d} din pehle", "hi": "आज" if d == 0 else f"{d} दिन पहले"}
     return rel.get(lang, rel["hinglish"]), date
+
+
+def records_line(order: dict, shipment: dict | None, lang: Lang, window_days: int = 7) -> str:
+    """One visible line showing what was verified against the shop's records (the order record is the invoice)."""
+    created = order.get("created_at")
+    when = (datetime.fromisoformat(created) if isinstance(created, str) else created) if created else None
+    ordered = when.strftime("%d %b") if when else "?"
+    paid = rs(order["paid_paise"])
+    method = "COD" if order.get("cod") else "UPI"
+    parts = {"en": [f"ordered {ordered}", f"paid {paid} {method}"],
+             "hinglish": [f"order {ordered}", f"{paid} {method} se paid"],
+             "hi": [f"ऑर्डर {ordered}", f"{paid} {method} से भुगतान"]}.get(lang) or [f"order {ordered}", f"{paid} {method} se paid"]
+    if shipment and shipment.get("status") == "delivered" and shipment.get("delivered_at"):
+        at = shipment["delivered_at"]
+        d = (datetime.now(timezone.utc) - (datetime.fromisoformat(at) if isinstance(at, str) else at)).days
+        inside = d <= window_days
+        parts.append({"en": f"delivered {d}d ago ({'inside' if inside else 'outside'} {window_days}-day window)",
+                      "hi": f"{d} दिन पहले डिलीवर ({window_days} दिन की अवधि के {'अंदर' if inside else 'बाहर'})"}
+                     .get(lang, f"{d} din pehle deliver ({window_days} din ki window ke {'andar' if inside else 'bahar'})"))
+    label = {"en": "Checked from records", "hi": "रिकॉर्ड से जाँचा"}.get(lang, "Records se check kiya")
+    return f"\n📋 {label}: " + " · ".join(parts)

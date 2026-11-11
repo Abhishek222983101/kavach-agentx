@@ -53,6 +53,7 @@ class TurnState(TypedDict, total=False):
     courier_down: bool
     clauses: list
     photos: list
+    returns: list
     plan: list
     outcome: dict
     reply: str
@@ -175,6 +176,11 @@ def build(deps: Deps, checkpointer: Any):
                 out["clauses"] = await deps.store.policies()
             except StoreUnavailable:
                 out["clauses"] = []
+        if mine and u.intent in ("refund", "return"):
+            try:
+                out["returns"] = await deps.store.returns_for_order(order["id"])
+            except StoreUnavailable:
+                out["returns"] = []
         if mine and "get_photos" in plan:
             try:
                 out["photos"] = await deps.store.photos(order["id"])
@@ -313,6 +319,28 @@ def build(deps: Deps, checkpointer: Any):
         else:
             args = {"order_id": order["id"]}
 
+        # already in progress? explain instead of booking it again (and tell the seller if the customer is pressing)
+        if mine and tool is WriteTool.create_return_pickup and s.get("returns"):
+            r0 = s["returns"][0]
+            rel, _ = R.days_ago(r0.get("created_at"), lang)
+            pressing = "PRESSURE" in (s.get("guard") or {}).get("tags", []) or any(
+                w in s["text"].lower() for w in ("urgent", "emergency", "abhi", "jaldi", "right now", " rn", "now", "turant"))
+            if pressing:
+                await deps.notify_seller({"kind": "human", "conv": conv, "trace_id": trace,
+                                          "summary": f"{conv.get('name')} is pressing for the refund on order {order['id']} ({order['item']}); a return pickup is already booked."})
+            extra = {"en": " I've told the seller you need it urgently; they'll get back to you." if pressing else " Reply \"human\" if you need the seller.",
+                     "hi": " मैंने विक्रेता को बता दिया है कि आपको जल्दी चाहिए।" if pressing else " विक्रेता से बात करनी हो तो \"human\" लिखिए।"
+                     }.get(lang, " Maine seller ko bata diya hai ki aapko jaldi chahiye, woh sampark karenge." if pressing else " Seller se baat karni ho to \"human\" likhiye.")
+            msg = {"en": f"A return pickup for order {order['id']} ({order['item']}) is already booked ({rel}). The refund is processed once the item is picked up and checked.",
+                   "hi": f"ऑर्डर {order['id']} ({order['item']}) का रिटर्न पिकअप पहले से बुक है ({rel})। सामान पिकअप और जाँच के बाद रिफ़ंड हो जाएगा।"
+                   }.get(lang, f"Order {order['id']} ({order['item']}) ka return pickup pehle se book hai ({rel}). Item pickup aur check ke baad refund ho jayega.")
+            return reply(msg + extra, outcome={"verdict": "NONE", "reasons": ["already_in_progress"]})
+        if mine and tool is WriteTool.issue_refund and order["refunded_paise"] >= order["paid_paise"]:
+            return reply({"en": f"Order {order['id']} ({order['item']}) has already been refunded in full ({R.rs(order['refunded_paise'])}).",
+                          "hi": f"ऑर्डर {order['id']} ({order['item']}) का पूरा रिफ़ंड ({R.rs(order['refunded_paise'])}) पहले ही हो चुका है।"
+                          }.get(lang, f"Order {order['id']} ({order['item']}) ka poora refund ({R.rs(order['refunded_paise'])}) pehle hi ho chuka hai."),
+                         outcome={"verdict": "NONE", "reasons": ["already_refunded"]})
+
         # self-check before asking: a damage claim without a photo would only be blocked, so ask first
         if mine and reason in ("damaged", "wrong_item") and tool in (WriteTool.issue_refund, WriteTool.create_return_pickup) and not s.get("photos"):
             return reply(R.say("need_photo", lang, item=order["item"]),
@@ -353,7 +381,7 @@ def build(deps: Deps, checkpointer: Any):
                            result=res.status, reason=res.reason, tool=tool.value)
             outcome["executed"] = res.status
             if res.status in ("executed", "already_executed"):
-                text = done_text(tool, args, order, lang)
+                text = done_text(tool, args, order, lang) + R.records_line(order, s.get("shipment"), lang)
                 if s.get("converted_refund"):
                     text += {"en": " Your refund is processed once the item is picked up and checked.",
                              "hinglish": " Item pickup aur check hone ke baad refund process ho jayega.",
@@ -371,7 +399,8 @@ def build(deps: Deps, checkpointer: Any):
             key = next((r for r in v.reasons if r in R.ESC_WHY), "guard_flag")
             why = R.phrase(R.ESC_WHY, key, lang, limit=R.rs(v.risk.auto_limit_paise or 50000))
             what = R.phrase(R.WHAT, tool.value, lang, amount=R.rs(args.get("amount_paise", 0)))
-            return {"reply": R.say("escalated", lang, what=what, oid=order["id"], why=why), "outcome": outcome}
+            return {"reply": R.say("escalated", lang, what=what, oid=order["id"], why=why) + R.records_line(order, s.get("shipment"), lang),
+                    "outcome": outcome}
         # BLOCK: explain the most important reasons in plain words, quoting the real policy when relevant
         res = {r.kind.value: r for r in v.results}
         days = None
@@ -388,7 +417,8 @@ def build(deps: Deps, checkpointer: Any):
             if c:
                 clause = f"\n📜 \"{c['text_hinglish'] if lang == 'hinglish' and c.get('text_hinglish') else c['text']}\""
         mine = order["customer_id"] == conv["customer_id"]
-        return {"reply": R.say("blocked", lang, why=why, clause=clause, oid=order["id"], item=order["item"] if mine else "—"), "outcome": outcome}
+        rec = R.records_line(order, s.get("shipment"), lang) if mine else ""
+        return {"reply": R.say("blocked", lang, why=why, clause=clause, oid=order["id"], item=order["item"] if mine else "—") + rec, "outcome": outcome}
 
     async def respond(s: TurnState) -> dict:
         t0 = time.perf_counter()

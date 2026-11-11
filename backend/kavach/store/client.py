@@ -83,6 +83,7 @@ class StoreClient:
     async def refunds_for_order(self, oid: int) -> list[dict]: return await self._get("/refunds", order_id=int(oid))
     async def refunds_for_customer(self, cid: str, days: int = 30) -> list[dict]: return await self._get("/refunds", customer_id=cid, days=days)
     async def policies(self) -> list[dict]: return await self._get("/policies")
+    async def returns_for_order(self, oid: int) -> list[dict]: return await self._get("/returns", order_id=int(oid))
     async def photos(self, oid: int) -> list[dict]: return await self._get("/photos", order_id=int(oid))
     async def settings(self) -> dict: return await self._get("/settings")
 
