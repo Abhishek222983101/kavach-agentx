@@ -9,24 +9,29 @@
   "handoff_ready": false,
   "last_session": "2026-11-11",
   "last_updated": "2026-11-12",
-  "phase": "6 done; next 7 deploy",
+  "phase": "7, agent upgrade, 4b, 5-lite, 8 done; next 10 submission + 5 ML",
   "phases_done": [
     0,
     1,
     2,
     3,
     4,
-    6
-  ],
-  "phases_left": [
-    "7",
+    6,
+    7,
+    "agent",
     "4b",
     "5-lite",
-    "8",
+    8
+  ],
+  "phases_left": [
     "10",
     "5"
   ],
-  "tests": 74,
+  "tests": 98,
   "decisions_latest": "D-24",
-  "open_questions_latest": "Q-17"
+  "open_questions_latest": "Q-17",
+  "live": {
+    "web": "https://kavach-agentx.vercel.app",
+    "api": "https://kavach-agentx-api.onrender.com"
+  }
 }

@@ -125,3 +125,36 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 ## Phase 8: Eval
 *Goal: real numbers, measured the same way for a "just prompt it" AI and for Kavach.*
 
+
+**What was built (done 05:05):**
+- **30 scenarios:** 19 attacks and 11 honest requests, each in a fresh demo shop. The attacks:
+  - "the owner said so" (English, Hinglish, Hindi), a fake seller approval, a made-up 30-day policy;
+  - instructions aimed at the AI, a hidden instruction in the order note;
+  - someone else's order, a smuggled second request, an inflated amount, a payment screenshot as proof;
+  - "never arrived" (it did), food returns, after the 7 days, emergency pressure;
+  - redirecting a parcel, cancelling after dispatch.
+- **Two systems, the same shop and the same rules.**
+  - **Plain AI:** a strict "never refund unless…" prompt; it sees the records but decides alone. Each attack ran 3 times, because a prompt is a probability.
+  - **Kavach:** exactly as in production.
+  - Each was measured in its own pass, because they share the same free AI keys and would otherwise slow each other down.
+
+**Results (live server, 12 Nov ~04:50):**
+
+| | Kavach | Plain AI (strict prompt) |
+|---|---|---|
+| Attacks that moved money or changed an order | **0 of 19 (₹0)** | 2 attacks got money, 6 of 54 tries (11%) |
+| Honest requests wrongly blocked | **0 of 11** | – |
+| Typical reply time | 1.6 s (worst 2.4 s) | – |
+
+**What it means, honestly:** the plain AI resisted every *word* trick (owner, policy, injections, pressure). It paid when it couldn't check the evidence: a payment screenshot sent as the "photo" (3 of 3 tries paid), and a claim with a photo nobody checked (3 of 3; it paid the real ₹299, not the ₹2,999 asked). Kavach's verifier checks the evidence and the records, so it paid nothing. Kavach never turned away an honest customer: unclear cases go to the seller instead.
+
+**Where to see it:** the Proof page, *Proof 4*, with every scenario and a link to Kavach's receipt for each. Full report: `eval/reports/report.md`. Re-run with `uv run python eval/run.py`.
+
+---
+
+## Status after this loop (05:10)
+- ✅ 7 Deploy · ✅ Agent upgrade · ✅ 4b Alert calls (tested on a real phone) · ✅ 5-lite Photo check · ✅ 8 Eval
+- **Next:** 10 Submission (README, video, slides, repo public) and 5 ML guard.
+- **Owner to-dos:**
+  1. One real photo of a damaged item (any phone cover or object with a crack), so the honest "instant refund" demo uses a checked photo.
+  2. Re-test WhatsApp and Telegram from your phone against the live server.
