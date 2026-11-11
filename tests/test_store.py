@@ -96,3 +96,8 @@ async def test_chaos_courier_down_retries_then_unavailable(clients):
     assert r.calls.count(f"GET /shipments/{awb}") == 3      # first try + 2 retries
     with pytest.raises(NotFound):
         await r.order(999999)
+
+
+async def test_auth_is_checked_before_anything_else(store_app):
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=store_app), base_url="http://s") as c:
+        assert (await c.post("/refunds", json={"order_id": 1043, "amount_paise": 1})).status_code == 401

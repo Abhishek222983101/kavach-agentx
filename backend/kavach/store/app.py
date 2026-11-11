@@ -194,7 +194,7 @@ def create_app(*, reader_pool: asyncpg.Pool | None = None, writer_pool: asyncpg.
         return {**dict(row), "replayed": True}
 
     @app.post("/refunds")
-    async def create_refund(body: RefundIn, key: str = Depends(idem), _: Role = Depends(writer)):
+    async def create_refund(body: RefundIn, _: Role = Depends(writer), key: str = Depends(idem)):
         fp = sha256_hex(canonical({"order_id": body.order_id, "amount_paise": body.amount_paise}))
         async with wp().acquire() as conn, conn.transaction():
             if (prev := await _replay(conn, "refunds", key, fp)) is not None:
@@ -210,7 +210,7 @@ def create_app(*, reader_pool: asyncpg.Pool | None = None, writer_pool: asyncpg.
             return {**dict(row), "replayed": False}
 
     @app.post("/returns")
-    async def create_return(body: ReturnIn, key: str = Depends(idem), _: Role = Depends(writer)):
+    async def create_return(body: ReturnIn, _: Role = Depends(writer), key: str = Depends(idem)):
         fp = sha256_hex(canonical({"order_id": body.order_id, "reason": body.reason}))
         async with wp().acquire() as conn, conn.transaction():
             if (prev := await _replay(conn, "returns", key, fp)) is not None:
@@ -235,11 +235,11 @@ def create_app(*, reader_pool: asyncpg.Pool | None = None, writer_pool: asyncpg.
             return dict(row)
 
     @app.patch("/orders/{oid}/address")
-    async def update_address(oid: int, body: AddressIn, _k: str = Depends(idem), _: Role = Depends(writer)):
+    async def update_address(oid: int, body: AddressIn, _: Role = Depends(writer), _k: str = Depends(idem)):
         return await _pre_dispatch_update(oid, "UPDATE orders SET address = $2 WHERE id = $1 RETURNING id, address, status", body.new_address)
 
     @app.post("/orders/{oid}/cancel")
-    async def cancel(oid: int, _k: str = Depends(idem), _: Role = Depends(writer)):
+    async def cancel(oid: int, _: Role = Depends(writer), _k: str = Depends(idem)):
         return await _pre_dispatch_update(oid, "UPDATE orders SET status = 'cancelled' WHERE id = $1 RETURNING id, status")
 
     @app.put("/settings/{name}")
