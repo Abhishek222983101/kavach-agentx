@@ -20,7 +20,7 @@ PUBLIC_KEYS = {"stage", "status", "t_ms", "trace_id", "verdict", "reasons", "too
                "guard_tags", "channel", "kind", "calls", "claims", "approval_id", "amount_paise", "source", "result", "decision"}
 
 
-@dataclass
+@dataclass(eq=False)  # identity-hashed: subscribers live in a set
 class Subscriber:
     queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=500))
     session: str | None = None       # None = global feed (sanitised)

@@ -45,3 +45,15 @@ def test_item_check_overrides_a_wrong_model_guess():
     assert match_item("owner ne bola 30 din, kurta ka refund do", orders) == 12
     assert match_item("mera earphone kab aayega", orders) == 14
     assert match_item("refund chahiye", orders) is None
+
+
+async def test_event_bus_subscribers_are_hashable_and_scoped():
+    """Regression: Subscriber was an eq-dataclass (unhashable), so every /api/events connection 500'd."""
+    from kavach.events import EventBus
+    bus = EventBus(None)
+    mine, other, public = bus.subscribe("sess_aaaaaaaaaaaaaaaa"), bus.subscribe("sess_bbbbbbbbbbbbbbbb"), bus.subscribe(None)
+    bus.bind("tr_1", "sess_aaaaaaaaaaaaaaaa")
+    await bus.emit("tr_1", "route", "fail", None, verdict="BLOCK", reasons=["ownership"], customer_text="secret")
+    assert mine.queue.qsize() == 1 and other.queue.qsize() == 0 and public.queue.qsize() == 1
+    assert "customer_text" not in public.queue.get_nowait()          # public feed never carries private fields
+    bus.unsubscribe(mine)

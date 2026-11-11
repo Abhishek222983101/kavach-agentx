@@ -143,6 +143,17 @@ async def test_damaged_small_item_with_photo_is_refunded_instantly(api, fake):
     assert out["outcome"]["verdict"] == "ALLOW" and "₹299" in out["reply"] and "Ho gaya" in out["reply"]
 
 
+async def test_photo_sent_with_the_first_message_counts_as_evidence(api, fake):
+    """Regression: picture + caption in one message (normal on WhatsApp) was dropped unless we had asked first."""
+    c, _ = api
+    h = new_session()
+    orders, _ = await me(c, h)
+    cover = orders["Phone cover"]
+    fake.next = U("refund", order_id=cover["id"], reason="damaged")
+    out = await say(c, h, "phone cover arrived cracked, photo attached", photo=True)
+    assert out["outcome"]["verdict"] == "ALLOW" and "₹299" in out["reply"]
+
+
 async def test_friend_report_5000_rupee_is_money_not_an_order(api, fake):
     c, _ = api
     h = new_session()

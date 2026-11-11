@@ -237,6 +237,13 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
             raise HTTPException(status, out.get("detail", "refused"))
         return out
 
+    @app.get("/api/seller/settings")
+    async def seller_settings_get():
+        """Public: the shop's current rules (kill switch, limits). Only changing them needs the PIN."""
+        s = await app.state.store.settings()
+        keep = ("kill_switch", "auto_limit_paise", "hard_cap_paise", "window_days", "freq_window_days")
+        return {k: s.get(k) for k in keep}
+
     @app.get("/api/seller/feed")
     async def seller_feed(seller: bool = Depends(is_seller)):
         if not seller:
@@ -258,5 +265,116 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
     @app.get("/api/audit/verify")
     async def audit_verify():
         return await app.state.trust.audit_verify()
+
+    # ───────────── B0 arena: the same message to a prompt-only agent (simulated, never moves money) ─────────────
+    @app.post("/api/arena")
+    async def arena(body: ChatIn, sess: str = Depends(session)):
+        from kavach.agent import baseline
+        text = clean(body.text)
+        if not text:
+            raise HTTPException(422, "empty message")
+        conv = await web_conv(sess)
+        if not app.state.caps.allow_user(f"web:{sess}"):
+            return {"limited": True, "tries": 0, "paid_out_in": 0, "max_paid_rupees": 0, "runs": []}
+        orders = await app.state.store.orders(conv["customer_id"], limit=10)
+
+        async def view(o: dict) -> dict:
+            ship = {}
+            if o.get("awb"):
+                try:
+                    ship = await app.state.store.shipment(o["awb"])
+                except Exception:  # noqa: BLE001 - the baseline just sees less
+                    ship = {}
+            return {"order_id": o["id"], "item": o["item"], "paid_rupees": o["paid_paise"] / 100,
+                    "refunded_rupees": o["refunded_paise"] / 100, "status": o["status"], "cod": o["cod"],
+                    "perishable": o["perishable"], "note": o["note"], "ordered_at": o["created_at"],
+                    "delivered_at": ship.get("delivered_at")}
+
+        views = await asyncio.gather(*[view(o) for o in orders])
+        policy = [{"title": p["title"], "text": p["text"]} for p in await app.state.store.policies()]
+        return await baseline.run(text, body.photo, list(views), policy, tries=3)
+
+    # ───────────── public proof (no customer text, no phone numbers) ─────────────
+    @app.get("/api/proof/audit")
+    async def proof_audit(limit: int = 15):
+        limit = max(1, min(limit, 50))
+        rows = await app.state.pool.fetch(
+            "SELECT i, ts, event, summary, prev_hash, hash FROM audit_log ORDER BY i DESC LIMIT $1", limit)
+        total = await app.state.pool.fetchval("SELECT count(*) FROM audit_log")
+        paid = await app.state.pool.fetchval(
+            """SELECT p.trace_id FROM executions e JOIN proposals p ON p.id = e.proposal_id
+               WHERE e.tool = 'issue_refund' ORDER BY e.ts DESC LIMIT 1""")
+        blocked = await app.state.pool.fetchval(
+            """SELECT p.trace_id FROM verdicts v JOIN proposals p ON p.id = v.proposal_id
+               WHERE v.verdict = 'BLOCK' ORDER BY v.ts DESC LIMIT 1""")
+        return {"total": total, "rows": [dict(r) for r in rows], "latest_paid_trace": paid, "latest_blocked_trace": blocked}
+
+    @app.get("/api/proof/recent")
+    async def proof_recent(limit: int = 14):
+        rows = await app.state.pool.fetch(
+            """SELECT p.trace_id, v.verdict, v.reasons, p.tool, v.ts,
+                      (SELECT e.payload->>'channel' FROM events e WHERE e.trace_id = p.trace_id AND e.stage = 'ingest' LIMIT 1) AS channel
+               FROM verdicts v JOIN proposals p ON p.id = v.proposal_id WHERE p.parent_id IS NULL
+               ORDER BY v.ts DESC LIMIT $1""", max(1, min(limit, 50)))
+        return [{**dict(r), "reasons": json.loads(r["reasons"]) if isinstance(r["reasons"], str) else r["reasons"]} for r in rows]
+
+    _last_tamper = {"t": 0.0}
+
+    @app.post("/api/proof/tamper")
+    async def proof_tamper():
+        """Copies the audit log into a temporary table, edits one row of the COPY, and runs the same
+        audit_verify() on it. The real log is never touched (it is append-only by trigger anyway)."""
+        if time.monotonic() - _last_tamper["t"] < 2:
+            raise HTTPException(429, "one tamper test every 2 seconds")
+        _last_tamper["t"] = time.monotonic()
+        async with app.state.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute("CREATE TEMP TABLE audit_copy ON COMMIT DROP AS SELECT * FROM audit_log")
+                n = await conn.fetchval("SELECT count(*) FROM audit_copy")
+                if not n:
+                    return {"rows": 0, "edited_row": None, "found_broken_row": None, "before": None, "after": None}
+                target = await conn.fetchrow(
+                    "SELECT i, summary FROM audit_copy ORDER BY i OFFSET $1 LIMIT 1", max(0, n // 2))
+                before = await conn.fetchval("SELECT audit_verify('audit_copy'::regclass)")
+                edited = target["summary"].replace("BLOCK", "ALLOW", 1) if "BLOCK" in target["summary"] else target["summary"] + " (edited)"
+                await conn.execute("UPDATE audit_copy SET summary = $1 WHERE i = $2", edited, target["i"])
+                after = await conn.fetchval("SELECT audit_verify('audit_copy'::regclass)")
+        return {"rows": n, "edited_row": target["i"], "original": target["summary"], "edited": edited,
+                "broken_before": before, "found_broken_row": after}
+
+    @app.get("/api/proof/roles")
+    async def proof_roles():
+        """Asks Postgres itself what each service's database user may do."""
+        checks = [("kavach_reader", "refunds", "INSERT"), ("kavach_reader", "orders", "UPDATE"),
+                  ("kavach_reader", "executions", "INSERT"), ("kavach_reader", "settings", "UPDATE"),
+                  ("kavach_reader", "audit_log", "UPDATE"), ("kavach_writer", "refunds", "INSERT"),
+                  ("kavach_writer", "audit_log", "UPDATE"), ("kavach_writer", "audit_log", "DELETE")]
+        out = []
+        for role, table, priv in checks:
+            ok = await app.state.pool.fetchval("SELECT has_table_privilege($1, $2, $3)", role, table, priv)
+            out.append({"role": role, "table": table, "privilege": priv, "allowed": ok})
+        me = await app.state.pool.fetchval("SELECT current_user")
+        trigger = await app.state.pool.fetchval(
+            "SELECT count(*) FROM pg_trigger WHERE tgname = 'audit_no_update' AND NOT tgisinternal")
+        return {"api_runs_as": me, "checks": out, "audit_append_only_trigger": bool(trigger)}
+
+    @app.get("/api/proof/trace/{trace_id}")
+    async def proof_trace(trace_id: str):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{6,64}", trace_id):
+            raise HTTPException(400, "bad trace id")
+        from kavach.events import PUBLIC_KEYS
+        rows = await app.state.pool.fetch(
+            "SELECT stage, status, t_ms, payload, ts FROM events WHERE trace_id = $1 ORDER BY id LIMIT 60", trace_id)
+        if not rows:
+            raise HTTPException(404, "no decision with that reference")
+        steps = []
+        for r in rows:
+            p = r["payload"] if isinstance(r["payload"], dict) else json.loads(r["payload"] or "{}")
+            steps.append({"stage": r["stage"], "status": r["status"], "t_ms": r["t_ms"], "ts": r["ts"],
+                          **{k: v for k, v in p.items() if k in PUBLIC_KEYS}})
+        ex = await app.state.pool.fetchrow(
+            """SELECT e.nonce, e.tool, e.amount_paise, e.result->>'status' AS status, e.ts, p.args_hash
+               FROM executions e JOIN proposals p ON p.id = e.proposal_id WHERE p.trace_id = $1 LIMIT 1""", trace_id)
+        return {"trace_id": trace_id, "steps": steps, "execution": dict(ex) if ex else None}
 
     return app

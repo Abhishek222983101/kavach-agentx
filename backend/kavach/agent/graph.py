@@ -181,6 +181,15 @@ def build(deps: Deps, checkpointer: Any):
                 out["returns"] = await deps.store.returns_for_order(order["id"])
             except StoreUnavailable:
                 out["returns"] = []
+        # A photo sent together with the first message (picture + caption) is filed against the order the
+        # message turned out to be about. (ingest only files it when we had already asked for one.)
+        pending = s.get("pending") or {}
+        if mine and pending.get("order_id") != order["id"]:
+            for m in s.get("media") or []:
+                if m.get("kind") == "image":
+                    digest = hashlib.sha256((m.get("sha256") or m.get("url") or str(time.time())).encode()).hexdigest()[:16]
+                    await deps.pool.execute("INSERT INTO photos(order_id, phash, source, media_type) VALUES ($1,$2,$3,$4)",
+                                            order["id"], digest, s["conv"]["channel"], m.get("content_type", "image"))
         if mine and "get_photos" in plan:
             try:
                 out["photos"] = await deps.store.photos(order["id"])
