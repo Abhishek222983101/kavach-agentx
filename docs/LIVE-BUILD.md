@@ -34,9 +34,9 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 
 (entries follow)
 
-**7.1 Container (done 04:20).** The three backend services (store, verifier, chat API) are packed into one container. Only the chat API is reachable from the internet; the store and the verifier listen inside the container only. It runs as a normal user, not root, starts in 4 seconds and uses about 200 MB. Secrets are uploaded to Render as a private file, never put in the code.
+**7.1 Container (done 04:05).** The three backend services (store, verifier, chat API) are packed into one container. Only the chat API is reachable from the internet; the store and the verifier listen inside the container only. It runs as a normal user, not root, starts in 4 seconds and uses about 200 MB. Secrets are uploaded to Render as a private file, never put in the code.
 
-**7.2 Live on the internet (done 04:30).**
+**7.2 Live on the internet (done 04:10).**
 - Website: https://kavach-agentx.vercel.app (Vercel). Almost every page is pre-built, so it loads instantly.
 - Backend: https://kavach-agentx-api.onrender.com (Render, Singapore, the same region as the database). A full chat reply takes **1.4 seconds** from India (2–7 s from the laptop).
 - Telegram now sends messages straight to the server (webhook, with a secret so nobody else can post to it). WhatsApp is checked every 3 seconds, so no Twilio console setting is needed. If the server was asleep, it looks back 10 minutes when it wakes.
@@ -58,7 +58,7 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 *Goal: show real agent behaviour (choosing what to look up, handling two requests in one message, asking when unsure), while the money rules stay exactly as strict.*
 
 
-**What changed, in plain words (done 05:00):**
+**What changed, in plain words (done 04:20):**
 1. **The AI decides what to look up.** Before, every refund read the same four records. Now the AI picks (order, courier, policy, photos, refund history) and says why. A safety rule then adds anything the verifier will need, so the AI can't "forget" a check. The checks panel shows both: solid chips = the AI chose it, dashed = the safety rule added it.
 2. **Two requests in one message.** "Where are my earphones, and the phone cover arrived broken, refund please" gets two answers. The refund still goes through the verifier on its own.
 3. **Asks when unsure, with fixed options.** "I want a refund" with no reason gets "What happened? 1 Damaged 2 Wrong item 3 Never received 4 Changed my mind". These are fixed choices, so the AI never invents the question. Messages that look like scams (claims of authority, pressure, a stated amount) are **not** turned into a friendly question; they go straight to the verifier and are blocked on the record. A test caught this case.
