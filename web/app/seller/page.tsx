@@ -20,7 +20,7 @@ export default function Seller() {
   const refresh = useCallback(async () => {
     kavach.shopRules().then(setRules).catch(() => {});
     if (!sellerPin.get()) return;
-    try { setItems(await kavach.approvals(true)); setAuthed(true); }
+    try { await kavach.sellerFeed(); setItems(await kavach.approvals(true)); setAuthed(true); }   // the feed needs the PIN; approvals alone don't prove it
     catch (e) { if (e instanceof ApiError && (e.status === 401 || e.status === 403)) { setAuthed(false); sellerPin.set(""); } }
   }, []);
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -29,7 +29,7 @@ export default function Seller() {
 
   async function login(e: React.FormEvent) {
     e.preventDefault(); sellerPin.set(pin);
-    try { setItems(await kavach.approvals(true)); setAuthed(true); setPin(""); }
+    try { await kavach.sellerFeed(); setItems(await kavach.approvals(true)); setAuthed(true); setPin(""); }
     catch { sellerPin.set(""); toast.error("That PIN didn't work"); }
   }
   async function decide(a: Approval, d: "approve" | "reject") {
@@ -53,7 +53,7 @@ export default function Seller() {
 
       <HowTo steps={[
         { do: "In Live demo, claim a broken speaker (₹1,299) with a photo", see: "It's over ₹500, so it lands here." },
-        { do: "Enter the seller PIN, then Approve or Reject", see: "Approve re-checks the records, then pays." },
+        { do: "Enter the seller PIN, then Approve or Reject", see: "Approve re-checks the records, then pays. The seller also gets each request on Telegram and email." },
         { do: "Press Pause all, then try a ₹299 refund", see: "Even a valid refund is refused while paused." },
       ]} />
 
@@ -85,7 +85,7 @@ export default function Seller() {
         <form onSubmit={login} className="card mx-auto mt-10 max-w-sm p-6 text-center">
           <Lock size={22} className="mx-auto text-faint" />
           <h2 className="mt-3 text-[18px] font-semibold">Enter the seller PIN</h2>
-          <p className="mt-1 text-[14px] text-muted">Judges: you can approve your own demo requests from the live demo page without a PIN.</p>
+          <p className="mt-1 text-[14px] text-muted">Judges: the PIN is in our submission notes. No PIN? You can approve your own requests right inside the Live demo.</p>
           <input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" aria-label="Seller PIN"
             className="mt-4 h-11 w-full rounded-xl border border-line bg-panel px-3.5 text-center text-[16px] tracking-[0.3em] outline-none focus:border-line2" />
           <button type="submit" disabled={!pin} className="btn btn-primary mt-3 w-full !h-11">Open console</button>

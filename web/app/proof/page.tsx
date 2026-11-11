@@ -20,16 +20,19 @@ const Q = ({ children }: { children: React.ReactNode }) => <div className="text-
 const R = ({ children, tone }: { children: React.ReactNode; tone?: "ok" | "bad" }) => (
   <div className="mb-1.5 pl-4" style={{ color: tone === "ok" ? "var(--moss)" : tone === "bad" ? "var(--blood)" : "var(--bone)" }}>{children}</div>);
 
-function Proof({ n, title, claim, run, running, children }: { n: number; title: string; claim: string; run?: () => void; running?: boolean; children: React.ReactNode }) {
+function Proof({ n, title, claim, why, run, running, ranAt, children }: { n: number; title: string; claim: string; why?: string; run?: () => void; running?: boolean; ranAt?: string | null; children: React.ReactNode }) {
   return (
     <section className="card p-5">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div><div className="text-[12.5px] font-medium text-faint tnum">PROOF {n}</div>
           <h2 className="mt-0.5 text-[18px] font-semibold leading-snug">{title}</h2>
-          <p className="mt-0.5 text-[14.5px] text-muted">{claim}</p></div>
-        {run && <button onClick={run} disabled={running} className="btn btn-primary shrink-0">{running ? <Loader2 size={15} className="animate-spin" /> : <Play size={14} fill="currentColor" />}Run</button>}
+          <p className="mt-0.5 text-[14.5px] text-muted">{claim}</p>
+          {why && <p className="mt-1 text-[13.5px]"><span className="font-medium">Why it matters:</span> <span className="text-muted">{why}</span></p>}</div>
+        {run && <div className="flex shrink-0 flex-col items-end gap-1">
+          <button onClick={run} disabled={running} className="btn btn-primary">{running ? <Loader2 size={15} className="animate-spin" /> : <Play size={14} fill="currentColor" />}{running ? "Running…" : ranAt ? "Run again" : "Run"}</button>
+          {ranAt && !running && <span className="text-[12px] text-faint tnum">ran {ranAt} · live</span>}</div>}
       </div>
-      {children}
+      {running ? <div className="grid h-24 place-items-center rounded-lg border border-dashed border-line2 text-[14px] text-muted">Asking the live database…</div> : children}
     </section>
   );
 }
@@ -45,16 +48,23 @@ export default function ProofPage() {
   const [tampering, setTampering] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [feed, setFeed] = useState<FeedRow[]>([]);
+  const [ran1, setRan1] = useState<string | null>(null);
+  const [ran2, setRan2] = useState<string | null>(null);
+  const stamp = (t0: number) => `${new Date().toLocaleTimeString("en-IN")} · ${Math.round(performance.now() - t0)} ms`;
+  const atLeast = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  const runRoles = async () => { setRolesBusy(true); try { setRoles(await kavach.proofRoles()); } catch { toast.error("Couldn't reach the database"); } finally { setRolesBusy(false); } };
+  const runRoles = async (manual = true) => {
+    setRolesBusy(true); const t0 = performance.now();
+    try { const [r] = await Promise.all([kavach.proofRoles(), atLeast(manual ? 500 : 0)]); setRoles(r); if (manual) setRan1(stamp(t0)); }
+    catch { toast.error("Couldn't reach the database"); } finally { setRolesBusy(false); } };
   async function runTamper() {
-    setTampering(true); setTamper(null);
-    try { setTamper(await kavach.proofTamper()); kavach.audit().then(setIntact).catch(() => {}); }
+    setTampering(true); setTamper(null); const t0 = performance.now();
+    try { const [t] = await Promise.all([kavach.proofTamper(), atLeast(500)]); setTamper(t); setRan2(stamp(t0)); kavach.audit().then(setIntact).catch(() => {}); }
     catch (e) { toast.error(e instanceof ApiError ? e.message : "Tamper test failed to run"); } finally { setTampering(false); }
   }
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    runRoles();
+    runRoles(false);
     kavach.proofAudit(6).then(setAudit).catch(() => {});
     kavach.audit().then(setIntact).catch(() => {});
     kavach.stats().then(setStats).catch(() => {});
@@ -75,7 +85,7 @@ export default function ProofPage() {
     <div className="max-w-[1100px]">
       <header className="mb-5">
         <h1 className="text-[30px] font-semibold leading-tight tracking-tight">Don&apos;t trust us. Check.</h1>
-        <p className="mt-1 text-[15.5px] text-muted">Each proof runs against the live database when you press Run. What you see is what came back.</p>
+        <p className="mt-1 max-w-3xl text-[15.5px] text-muted">Kavach promises the AI can never pay out on its own. This page lets you test that promise yourself, live, against the real database. Nothing here is typed in by hand.</p>
       </header>
 
       <HowTo steps={[
@@ -91,7 +101,7 @@ export default function ProofPage() {
       </div>
 
       <div className="space-y-5">
-        <Proof n={1} title="The AI's process cannot pay anyone" claim="The chat and AI run as a database user that Postgres won't let write refunds. We try anyway." run={runRoles} running={rolesBusy}>
+        <Proof n={1} title="The AI's process cannot pay anyone" claim="The chat and AI run as a database user that Postgres won't let write refunds. Press Run and we try anyway." why="Even if someone tricks the AI completely, it has no way to move money." run={() => runRoles(true)} running={rolesBusy} ranAt={ran1}>
           {!roles ? <Loader2 size={18} className="animate-spin text-faint" /> : (
             <div className="grid gap-4 lg:grid-cols-2">
               <Term>
@@ -117,7 +127,7 @@ export default function ProofPage() {
             </div>)}
         </Proof>
 
-        <Proof n={2} title="The decision log can't be changed quietly" claim="Each row's fingerprint (SHA-256) includes the row before it. We copy the log, change one word, and re-check." run={runTamper} running={tampering}>
+        <Proof n={2} title="The decision log can't be changed quietly" claim="Every decision is saved with a fingerprint (SHA-256) that includes the row before it. Press Run: we copy the log, change one word in a random row, and re-check." why="Nobody, including us, can quietly rewrite what Kavach decided." run={runTamper} running={tampering} ranAt={ran2}>
           <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[14px]">
             <span>Live log: <b className="tnum">{audit?.total ?? "–"}</b> rows</span>
             <span>Check right now: {intact ? (intact.intact ? <b style={{ color: "var(--moss)" }}>intact</b> : <b style={{ color: "var(--blood)" }}>broken at #{intact.first_broken_row}</b>) : "…"}</span>
@@ -142,7 +152,7 @@ export default function ProofPage() {
           {tamper && <p className="mt-2 text-[13.5px] text-muted">Only the copy was changed, and it is dropped after the test. The real log stays intact.</p>}
         </Proof>
 
-        <Proof n={3} title="Every payout needs a one-time signed slip" claim="The verifier signs the exact order and amount (HMAC). The slip works once and expires in 10 minutes.">
+        <Proof n={3} title="Every payout needs a one-time signed slip" claim="The verifier signs the exact order and amount (HMAC). The slip works once and expires in 10 minutes. Open a receipt to see a real one." why="An approval can't be replayed, or reused for a bigger amount.">
           <div className="flex flex-wrap gap-2">
             {audit?.latest_paid_trace && <Link href={`/proof/${audit.latest_paid_trace}`} className="btn btn-ghost">Open a real paid refund<ArrowUpRight size={14} /></Link>}
             {audit?.latest_blocked_trace && <Link href={`/proof/${audit.latest_blocked_trace}`} className="btn btn-ghost">Open a real blocked one<ArrowUpRight size={14} /></Link>}

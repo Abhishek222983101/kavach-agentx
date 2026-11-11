@@ -10,6 +10,7 @@ import asyncio
 import json
 import os
 import re
+import secrets
 import time
 from contextlib import asynccontextmanager
 from typing import Any, Literal
@@ -347,7 +348,7 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
                 if not n:
                     return {"rows": 0, "edited_row": None, "found_broken_row": None, "log": log}
                 target = await conn.fetchrow(
-                    "SELECT i, ts, event, summary, payload, prev_hash, hash FROM audit_copy ORDER BY i OFFSET $1 LIMIT 1", max(0, n // 2))
+                    "SELECT i, ts, event, summary, payload, prev_hash, hash FROM audit_copy ORDER BY i OFFSET $1 LIMIT 1", secrets.randbelow(n))
                 before = await step(conn, "SELECT audit_verify('audit_copy')")
                 edited = target["summary"].replace("BLOCK", "ALLOW", 1) if "BLOCK" in target["summary"] else target["summary"] + " (edited)"
                 await step(conn, "UPDATE audit_copy SET summary = $1 WHERE i = $2", edited, target["i"], fetch="exec")
