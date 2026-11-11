@@ -57,3 +57,21 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 ## Agent upgrade
 *Goal: show real agent behaviour (choosing what to look up, handling two requests in one message, asking when unsure), while the money rules stay exactly as strict.*
 
+
+**What changed, in plain words (done 05:00):**
+1. **The AI decides what to look up.** Before, every refund read the same four records. Now the AI picks (order, courier, policy, photos, refund history) and says why. A safety rule then adds anything the verifier will need, so the AI can't "forget" a check. The checks panel shows both: solid chips = the AI chose it, dashed = the safety rule added it.
+2. **Two requests in one message.** "Where are my earphones, and the phone cover arrived broken, refund please" gets two answers. The refund still goes through the verifier on its own.
+3. **Asks when unsure, with fixed options.** "I want a refund" with no reason gets "What happened? 1 Damaged 2 Wrong item 3 Never received 4 Changed my mind". These are fixed choices, so the AI never invents the question. Messages that look like scams (claims of authority, pressure, a stated amount) are **not** turned into a friendly question; they go straight to the verifier and are blocked on the record. A test caught this case.
+4. **"Where is my refund?"** is answered from the refund records, with the date it should arrive.
+5. **A greeting that's actually useful.** "Hi! … Good news: your Wireless earphones order is on the way", plus a short menu.
+6. **Messages that read like a real brand's support line.** A bold outcome first, a short explanation, an italic "checked from records" line, Indian dates, and a reference number. On WhatsApp and Telegram a receipt link is added that anyone can open to see the checks.
+
+**Bugs found and fixed while building this:** "refund 5000" was read as order number 5000; a photo sent with two requests was filed against both orders; dates were in UTC instead of Indian time.
+
+**Checks:** 81 automated tests pass (7 new). Live test with the real AI: all 5 behaviours work. Security scanners are clean.
+
+---
+
+## Phase 4b: Seller alert calls
+*Goal: when something risky happens, the seller's phone rings with a 30-second summary, and can approve or reject with a key press.*
+
