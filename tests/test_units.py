@@ -83,3 +83,9 @@ async def test_seller_cards_respect_the_whatsapp_budget():
     assert sent == []
     await out.notify_seller({**card, "approval_id": 8, "conv": {"channel": "whatsapp", "user_id": "+91000"}})
     assert sorted(sent) == ["telegram", "whatsapp"]               # real WhatsApp customers still reach the seller everywhere
+
+
+def test_telegram_markup_is_escaped_and_converted():
+    from kavach.gateway.telegram import to_html
+    out = to_html("*Done* ✓ <script> & _checked_ https://x/proof/tr_ab_cd")
+    assert out.startswith("<b>Done</b>") and "&lt;script&gt; &amp;" in out and "<i>checked</i>" in out and "tr_ab_cd" in out

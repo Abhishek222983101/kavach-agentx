@@ -25,7 +25,7 @@ from langgraph.types import Command, interrupt
 from kavach.agent import guard as guard_mod
 from kavach.agent import replies as R
 from kavach.agent.trust_client import TrustClient, TrustUnavailable
-from kavach.agent.understand import Understanding, understand
+from kavach.agent.understand import REASON_CHOICES, Understanding, understand
 from kavach.common.contracts import Caller, Claim, Decision, ExecuteIn, ProposalIn, Verdict, VerdictOut, WriteTool
 from kavach.events import EventBus
 from kavach.store.client import NotFound, StoreClient, StoreUnavailable
@@ -54,6 +54,7 @@ class TurnState(TypedDict, total=False):
     clauses: list
     photos: list
     returns: list
+    refunds: list
     plan: list
     outcome: dict
     reply: str
@@ -134,24 +135,29 @@ def build(deps: Deps, checkpointer: Any):
                 opts = pending.get("options") or []
                 if 1 <= u.choice <= len(opts):
                     u = Understanding.model_validate({**pending.get("u", {}), "order_id": opts[u.choice - 1], "source": "fast_path"})
+        if pending and pending.get("kind") == "choose_reason" and u.intent in ("refund", "return", "other") and u.reason:
+            u.intent = "refund" if u.intent == "other" else u.intent
+            u.order_id = u.order_id or pending.get("order_id")
         await bus.emit(s["trace_id"], "understand", "ok" if u.source != "fallback" else "warn", t0,
                        intent=u.intent, order_id=u.order_id, lang=u.lang, source=u.source, provider=u.provider,
-                       assertions=[a.model_dump() for a in u.customer_assertions])
+                       assertions=[a.model_dump() for a in u.customer_assertions], why_plan=u.why_plan,
+                       tasks=1 + len(u.also))
         return {"u": u.model_dump(), "orders": orders, "pending": None}
 
     async def plan_read(s: TurnState) -> dict:
         t0 = time.perf_counter()
         u = Understanding.model_validate(s["u"])
-        plan = list(dict.fromkeys(u.plan))
+        chosen = list(dict.fromkeys(u.plan))   # what the model decided to look up
         needs = {"where_is_order": ["get_order", "track_shipment"], "refund": ["get_order", "track_shipment", "search_policy", "get_photos"],
                  "return": ["get_order", "track_shipment", "search_policy", "get_photos"], "change_address": ["get_order", "search_policy"],
-                 "cancel": ["get_order", "search_policy"], "policy_question": ["search_policy"]}.get(u.intent, [])
-        for t in needs:                       # guard rails: the tools this intent always needs
-            if t not in plan:
-                plan.append(t)
+                 "cancel": ["get_order", "search_policy"], "policy_question": ["search_policy"],
+                 "refund_status": ["refund_history"]}.get(u.intent, [])
+        plan = list(chosen)
+        added = [t for t in needs if t not in plan]   # safety floor: facts the verifier will demand anyway
+        plan += added
         if not u.order_id and "get_order" in plan:
             plan.insert(0, "list_orders")
-        await bus.emit(s["trace_id"], "plan", "ok", t0, plan=plan, intent=u.intent)
+        await bus.emit(s["trace_id"], "plan", "ok", t0, plan=plan, intent=u.intent, chosen=chosen, added=added, why=u.why_plan)
 
         t1 = time.perf_counter()
         out: dict = {"plan": plan}
@@ -184,7 +190,7 @@ def build(deps: Deps, checkpointer: Any):
         # A photo sent together with the first message (picture + caption) is filed against the order the
         # message turned out to be about. (ingest only files it when we had already asked for one.)
         pending = s.get("pending") or {}
-        if mine and pending.get("order_id") != order["id"]:
+        if mine and pending.get("order_id") != order["id"] and u.intent in ("refund", "return"):
             for m in s.get("media") or []:
                 if m.get("kind") == "image":
                     digest = hashlib.sha256((m.get("sha256") or m.get("url") or str(time.time())).encode()).hexdigest()[:16]
@@ -195,6 +201,11 @@ def build(deps: Deps, checkpointer: Any):
                 out["photos"] = await deps.store.photos(order["id"])
             except StoreUnavailable:
                 out["photos"] = []
+        if "refund_history" in plan:
+            try:
+                out["refunds"] = await deps.store.refunds_for_customer(s["conv"]["customer_id"], days=90)
+            except StoreUnavailable:
+                out["refunds"] = []
         await bus.emit(s["trace_id"], "read", "warn" if out.get("courier_down") else "ok", t1, calls=list(deps.store.calls))
         return out
 
@@ -225,6 +236,27 @@ def build(deps: Deps, checkpointer: Any):
         return claims
 
     async def act(s: TurnState) -> dict:
+        """One message may hold two requests. The first runs normally; the second gets its own read + checks."""
+        first = await act_one(s)
+        u = Understanding.model_validate(s["u"])
+        if not u.also or first.get("pending"):
+            return first
+        t = u.also[0]
+        if t.intent == u.intent and (t.order_id or u.order_id) == u.order_id:
+            return first
+        u2 = Understanding.model_validate({**u.model_dump(), **t.model_dump(), "also": [], "plan": [], "customer_assertions": [],
+                                           "amount_rupees": None, "choice": None})
+        state = {**s, "u": u2.model_dump(), "pending": None}
+        state.update(await plan_read(state))
+        second = await act_one(state)
+        merged = {**second, **first, "reply": f"{first.get('reply', '')}\n\n{second.get('reply', '')}".strip()}
+        if not first.get("outcome") and second.get("outcome"):
+            merged["outcome"] = second["outcome"]
+        if not first.get("pending") and second.get("pending"):
+            merged["pending"] = second["pending"]
+        return merged
+
+    async def act_one(s: TurnState) -> dict:
         u = Understanding.model_validate(s["u"])
         lang, conv, order = _lang(s), s["conv"], s.get("order")
         mine = order is not None and order["customer_id"] == conv["customer_id"]
@@ -235,7 +267,9 @@ def build(deps: Deps, checkpointer: Any):
 
         # read-only intents
         if u.intent == "greeting":
-            return reply(R.say("greeting", lang, name=conv.get("name", "").split(" ")[0] or "ji"))
+            return reply(R.greeting(conv.get("name", ""), s.get("orders") or [], lang))
+        if u.intent == "refund_status":
+            return reply(R.refund_status(s.get("refunds") or [], s.get("orders") or [], u.order_id, lang))
         if u.intent == "talk_to_human":
             await deps.notify_seller({"kind": "human", "conv": conv, "trace_id": trace,
                                       "summary": f"{conv.get('name')} asked for a person. Last message: {s['text'][:200]}"})
@@ -295,6 +329,14 @@ def build(deps: Deps, checkpointer: Any):
                 return reply(R.say("status_delivered", lang, item=order["item"], oid=order["id"], days=rel, date=date))
             where = (ship.get("events") or [{}])[-1].get("where", "the hub")
             return reply(R.say("status_transit", lang, item=order["item"], oid=order["id"], courier=ship.get("courier", "courier"), where=where))
+
+        # a refund with no reason: ask what happened (fixed numbered options, nothing invented)
+        # Only for ordinary messages: anything with a claim of authority, pressure, a stated amount or a policy claim
+        # goes straight to the verifier so it is checked and recorded, not softened into a question.
+        risky = bool((s.get("guard") or {}).get("tags")) or bool(u.customer_assertions) or u.amount_rupees is not None
+        if u.intent == "refund" and u.reason is None and mine and order["status"] == "delivered" and not s.get("media") and not risky:
+            return reply(R.say("choose_reason", lang, item=order["item"], oid=order["id"]),
+                         pending={"kind": "choose_reason", "order_id": order["id"], "u": u.model_dump()})
 
         # write intents → build a proposal
         tool = WRITE_INTENTS[u.intent]
@@ -390,11 +432,12 @@ def build(deps: Deps, checkpointer: Any):
                            result=res.status, reason=res.reason, tool=tool.value)
             outcome["executed"] = res.status
             if res.status in ("executed", "already_executed"):
-                text = done_text(tool, args, order, lang) + R.records_line(order, s.get("shipment"), lang)
+                text = done_text(tool, args, order, lang)
                 if s.get("converted_refund"):
                     text += {"en": " Your refund is processed once the item is picked up and checked.",
                              "hinglish": " Item pickup aur check hone ke baad refund process ho jayega.",
                              "hi": " सामान पिकअप और जाँच के बाद रिफ़ंड हो जाएगा।"}.get(lang, "")
+                text += R.records_line(order, s.get("shipment"), lang)
                 return {"reply": text, "outcome": outcome}
             if (res.reason or "").startswith("kill_switch"):
                 return {"reply": R.say("frozen", lang), "outcome": outcome}
@@ -421,10 +464,11 @@ def build(deps: Deps, checkpointer: Any):
         keys = [k for k in order_of if k in v.reasons or f"missing_{k}" in v.reasons][:2] or ["policy"]
         why = "; ".join(R.phrase(R.WHY, k, lang, window=7, days=days) for k in keys)
         clause = ""
-        if any(k in keys for k in ("temporal", "policy", "authority")):
-            c = next((c for c in (s.get("clauses") or []) if c["id"] == 1), None)
+        if any(k in keys for k in ("temporal", "policy", "eligibility")):
+            want = 3 if "eligibility" in keys else (2 if args.get("reason") in ("damaged", "wrong_item") else CLAUSE_FOR.get(tool, 1))
+            c = next((c for c in (s.get("clauses") or []) if c["id"] == want), None)
             if c:
-                clause = f"\n📜 \"{c['text_hinglish'] if lang == 'hinglish' and c.get('text_hinglish') else c['text']}\""
+                clause = R.policy_quote(c, lang)
         mine = order["customer_id"] == conv["customer_id"]
         rec = R.records_line(order, s.get("shipment"), lang) if mine else ""
         return {"reply": R.say("blocked", lang, why=why, clause=clause, oid=order["id"], item=order["item"] if mine else "—") + rec, "outcome": outcome}
@@ -432,10 +476,12 @@ def build(deps: Deps, checkpointer: Any):
     async def respond(s: TurnState) -> dict:
         t0 = time.perf_counter()
         text = s.get("reply") or R.say("other", _lang(s))
+        if (s.get("outcome") or {}).get("verdict") in ("ALLOW", "ESCALATE", "BLOCK"):
+            text += R.ref_line(s["trace_id"], s["conv"].get("channel", "web"), _lang(s))   # every decision gets a reference
         await deps.send(s["conv"], text, s["trace_id"])
         hist = (s.get("history") or []) + [{"role": "agent", "text": text[:500]}]
         await bus.emit(s["trace_id"], "reply", "ok", t0, lang=_lang(s), chars=len(text))
-        return {"history": hist[-MAX_HISTORY:]}
+        return {"history": hist[-MAX_HISTORY:], "reply": text}
 
     conv_g = StateGraph(TurnState)
     for name, fn in (("ingest", ingest), ("guard", guard), ("understand", understand_node), ("plan_read", plan_read),

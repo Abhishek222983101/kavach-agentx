@@ -81,7 +81,7 @@ export type ProofAudit = { total: number; rows: AuditRow[]; latest_paid_trace: s
 export type TamperOut = { rows: number; edited_row: number | null; original?: string; edited?: string; stored_hash?: string; recomputed_hash?: string;
   broken_before?: number | null; found_broken_row: number | null; log: { sql: string; result: unknown; ms: number }[] };
 export type ProofRoles = { api_runs_as: string; checks: { role: string; table: string; privilege: string; allowed: boolean; sql: string }[]; audit_append_only_trigger: boolean;
-  write_attempt: { sql: string; result: string } };
+  write_attempt: { sql: string; as_role: string; result: string } };
 export type Claim = { kind: string; ok: boolean; why: string; tier: string; source: string };
 export type TraceStep = { stage: string; status: "running" | "ok" | "warn" | "fail"; t_ms: number | null; ts: string; verdict?: string; reasons?: string[];
   claims?: Claim[] | string[]; intent?: string; plan?: string[]; calls?: string[]; tool?: string; amount_paise?: number | null; guard_score?: number; guard_tags?: string[]; channel?: string; source?: string; result?: string; approval_id?: number };

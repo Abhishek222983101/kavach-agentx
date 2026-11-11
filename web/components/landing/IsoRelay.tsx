@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { Box, Cursor, curve, Flight, Glow, Plate, Press, Ripple, Signal, useDemoTap, type Box3 } from "react-isokit";
 import { Callout } from "react-isokit/drafting";
@@ -32,8 +32,8 @@ function Bubble({ b, bad }: { b: Box3; bad?: boolean }) {
 
 export default function IsoRelay({ autoplay = true }: { autoplay?: boolean }) {
   const { resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // true only in the browser (theme is unknown during server rendering); no effect needed
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   const [n, setN] = useState(0);
   const [stage, setStage] = useState(0); // 0 idle · 1 sending · 2 checking · 3 verdict
   const timers = useRef<number[]>([]);

@@ -100,13 +100,31 @@ export default function ProofPage() {
         <div className="card p-4"><div className="text-[13px] text-muted">Refunded after checks</div><div className="mt-1.5 text-[28px] font-semibold leading-none tnum">{rupees(stats?.paise_refunded)}</div></div>
       </div>
 
+      <section className="card mb-5 p-5" aria-label="How the agent works">
+        <div className="text-[12.5px] font-medium text-faint">THE AGENT</div>
+        <h2 className="mt-0.5 text-[18px] font-semibold">Free to read and reason. Never free to pay.</h2>
+        <ol className="mt-3 flex flex-wrap items-center gap-1.5 text-[13.5px]">
+          {["Understands the message (LLM, 3 languages)", "Decides what to look up", "Reads the records", "Proposes an action", "Verifier re-checks", "Allowed · seller · blocked"].map((t, i, a) => (
+            <li key={t} className="flex items-center gap-1.5">
+              <span className={`rounded-md px-2.5 py-1.5 ${i === 4 ? "border border-bone/25 bg-panel font-medium" : "bg-panel2"}`}>{t}</span>
+              {i < a.length - 1 && <span className="text-faint">→</span>}
+            </li>))}
+        </ol>
+        <div className="mt-4 grid gap-3 text-[14px] sm:grid-cols-2">
+          <div className="rounded-lg bg-panel2 p-3"><div className="mb-1 font-medium">The AI can</div>
+            <ul className="space-y-0.5 text-muted"><li>• choose which records to read (order, courier, policy, photos, refunds)</li><li>• handle two requests in one message</li><li>• ask a numbered question when something is missing</li><li>• remember the chat, even across restarts</li></ul></div>
+          <div className="rounded-lg bg-panel2 p-3"><div className="mb-1 font-medium">The AI cannot</div>
+            <ul className="space-y-0.5 text-muted"><li>• write to the money tables (Postgres refuses: Proof 1)</li><li>• skip a check: a safety rule adds any record it forgot</li><li>• invent facts: replies are filled in from the records</li><li>• act on &ldquo;the owner said so&rdquo; or instructions hidden in data</li></ul></div>
+        </div>
+      </section>
+
       <div className="space-y-5">
         <Proof n={1} title="The AI's process cannot pay anyone" claim="The chat and AI run as a database user that Postgres won't let write refunds. Press Run and we try anyway." why="Even if someone tricks the AI completely, it has no way to move money." run={() => runRoles(true)} running={rolesBusy} ranAt={ran1}>
           {!roles ? <Loader2 size={18} className="animate-spin text-faint" /> : (
             <div className="grid gap-4 lg:grid-cols-2">
               <Term>
                 <Q>SELECT current_user;</Q><R>{roles.api_runs_as}</R>
-                <Q>{roles.write_attempt.sql}</Q><R tone="ok">ERROR: {roles.write_attempt.result.replace(/^\w+: /, "")}</R>
+                <Q>{roles.write_attempt.sql}  -- as {roles.write_attempt.as_role}</Q><R tone="ok">ERROR: {roles.write_attempt.result.replace(/^\w+: /, "")}</R>
               </Term>
               <div className="text-[14px]">
                 <table className="w-full">

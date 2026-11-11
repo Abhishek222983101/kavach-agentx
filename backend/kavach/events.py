@@ -16,7 +16,7 @@ from typing import Any
 import asyncpg
 
 STAGES = ("ingest", "guard", "understand", "plan", "read", "propose", "verify", "route", "approve", "execute", "reply")
-PUBLIC_KEYS = {"stage", "status", "t_ms", "trace_id", "verdict", "reasons", "tool", "intent", "plan", "guard_score",
+PUBLIC_KEYS = {"stage", "status", "t_ms", "trace_id", "verdict", "reasons", "tool", "intent", "plan", "chosen", "added", "tasks", "guard_score",
                "guard_tags", "channel", "kind", "calls", "claims", "approval_id", "amount_paise", "source", "result", "decision"}
 
 

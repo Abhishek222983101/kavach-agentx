@@ -6,6 +6,7 @@ Disabled unless TELEGRAM_ENABLED=1, so an existing bot's token is never used by 
 from __future__ import annotations
 
 import asyncio
+import re
 import logging
 
 import httpx
@@ -33,10 +34,14 @@ class TelegramBot:
         return data["result"]
 
     async def send(self, chat_id: str, text: str, buttons: list[tuple[str, str]] | None = None) -> None:
-        params: dict = {"chat_id": chat_id, "text": text[:4000]}
+        params: dict = {"chat_id": chat_id, "text": to_html(text[:4000]), "parse_mode": "HTML", "link_preview_options": {"is_disabled": True}}
         if buttons:
             params["reply_markup"] = {"inline_keyboard": [[{"text": t, "callback_data": d} for t, d in buttons]]}
-        await self.call("sendMessage", **params)
+        try:
+            await self.call("sendMessage", **params)
+        except RuntimeError:                       # formatting rejected: never leave the customer without the message
+            params.update(text=text[:4000]); params.pop("parse_mode", None)
+            await self.call("sendMessage", **params)
 
 
 async def process_update(app, upd: dict) -> None:
@@ -106,6 +111,17 @@ async def _process_update(app, upd: dict) -> None:
     except Exception:  # noqa: BLE001
         pass
     await st.agent.handle(conv, text or "photo", media=media)
+
+
+_BOLD = re.compile(r"(?<![\w*])\*([^*\n]{1,200})\*(?![\w*])")
+_ITAL = re.compile(r"(?<![\w_/])_([^_\n]{1,300})_(?![\w_])")
+
+
+def to_html(text: str) -> str:
+    """Our light markup (*bold*, _italic_, as on WhatsApp) to Telegram HTML; everything else is escaped."""
+    t = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    t = _BOLD.sub(r"<b>\1</b>", t)
+    return _ITAL.sub(r"<i>\1</i>", t)
 
 
 router = APIRouter()

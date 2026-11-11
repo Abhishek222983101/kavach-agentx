@@ -6,6 +6,12 @@ export const STAGE: Record<string, string> = {
   approve: "Seller decision", execute: "Action carried out", reply: "Reply sent",
 };
 
+/** Read-only tools the AI can choose to call. */
+export const READ_TOOL: Record<string, string> = {
+  get_order: "Order", list_orders: "All orders", track_shipment: "Courier tracking", search_policy: "Shop policy",
+  get_photos: "Photos", refund_history: "Refund history",
+};
+
 export const TOOL: Record<string, string> = {
   issue_refund: "Refund", create_return_pickup: "Return pickup", update_address: "Address change", cancel_order: "Cancel order",
 };

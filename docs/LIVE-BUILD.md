@@ -33,3 +33,27 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 *Goal: a judge opens one link on their phone and everything works, fast.*
 
 (entries follow)
+
+**7.1 Container (done 04:20).** The three backend services (store, verifier, chat API) are packed into one container. Only the chat API is reachable from the internet; the store and the verifier listen inside the container only. It runs as a normal user, not root, starts in 4 seconds and uses about 200 MB. Secrets are uploaded to Render as a private file, never put in the code.
+
+**7.2 Live on the internet (done 04:30).**
+- Website: https://kavach-agentx.vercel.app (Vercel). Almost every page is pre-built, so it loads instantly.
+- Backend: https://kavach-agentx-api.onrender.com (Render, Singapore, the same region as the database). A full chat reply takes **1.4 seconds** from India (2–7 s from the laptop).
+- Telegram now sends messages straight to the server (webhook, with a secret so nobody else can post to it). WhatsApp is checked every 3 seconds, so no Twilio console setting is needed. If the server was asleep, it looks back 10 minutes when it wakes.
+
+**7.3 Security checks (passed).**
+- Only our website may call the API from a browser.
+- Fake Telegram or WhatsApp webhooks are refused.
+- Seller actions need the PIN.
+- Developer docs are hidden in production.
+- No secret appears in the website's code.
+
+**7.4 Staying awake (done).** The free server sleeps after 15 quiet minutes. A GitHub job pings it every 10 minutes until 16 Nov, so judges never wait for a cold start.
+
+**Still to verify by hand:** send a WhatsApp message and a Telegram message from a phone (owner).
+
+---
+
+## Agent upgrade
+*Goal: show real agent behaviour (choosing what to look up, handling two requests in one message, asking when unsure), while the money rules stay exactly as strict.*
+

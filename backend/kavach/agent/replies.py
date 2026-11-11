@@ -2,10 +2,18 @@
 
 Every message that states money, dates, order state or policy is rendered here from verified fields, in the
 customer's language: English, Hinglish (Roman Hindi) or Hindi (Devanagari). Short, warm, no jargon.
+
+House style (like a real brand's support line): a *bold* first line that says the outcome, one or two short lines of
+detail, an _italic_ "checked from records" line, and a reference number. Light markup only: *bold* and _italic_ are
+native on WhatsApp, converted to HTML for Telegram, and rendered by the web chat.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")          # customers read dates in Indian time
 
 Lang = str  # "en" | "hinglish" | "hi"
 
@@ -27,9 +35,9 @@ T: dict[str, dict[Lang, str]] = {
         "hi": "नमस्ते {name}! मैं कवच हूँ, दुकान का सहायक। ऑर्डर ट्रैक करना हो, रिटर्न या रिफ़ंड — बताइए क्या मदद करूँ?",
     },
     "choose_order": {
-        "en": "Which order is this about?\n{options}\nReply with the number.",
-        "hinglish": "Kaunse order ki baat hai?\n{options}\nNumber bhej dijiye.",
-        "hi": "किस ऑर्डर की बात है?\n{options}\nनंबर भेज दीजिए।",
+        "en": "*Which order is this about?*\n{options}\n\nReply with the number.",
+        "hinglish": "*Kaunse order ki baat hai?*\n{options}\n\nNumber bhej dijiye.",
+        "hi": "*किस ऑर्डर की बात है?*\n{options}\n\nनंबर भेज दीजिए।",
     },
     "no_orders": {
         "en": "I couldn't find any orders on your number.", "hinglish": "Aapke number par koi order nahi mila.",
@@ -45,19 +53,19 @@ T: dict[str, dict[Lang, str]] = {
         "hi": "ऑर्डर {oid} नहीं मिला। नंबर एक बार जाँच लेंगे?",
     },
     "status_delivered": {
-        "en": "Your {item} (order {oid}) was delivered {days} on {date}.",
-        "hinglish": "Aapka {item} (order {oid}) {date} ko deliver ho gaya tha ({days}).",
-        "hi": "आपका {item} (ऑर्डर {oid}) {date} को डिलीवर हो गया था ({days})।",
+        "en": "*Delivered* ✓\nYour {item} (order {oid}) was delivered on {date} ({days}).",
+        "hinglish": "*Delivered* ✓\nAapka {item} (order {oid}) {date} ko deliver ho gaya tha ({days}).",
+        "hi": "*डिलीवर हो गया* ✓\nआपका {item} (ऑर्डर {oid}) {date} को डिलीवर हो गया था ({days})।",
     },
     "status_transit": {
-        "en": "Your {item} (order {oid}) is on the way with {courier}: last seen at {where}. It should reach you in 1–2 days.",
-        "hinglish": "Aapka {item} (order {oid}) {courier} ke saath raaste mein hai — abhi {where} par hai. 1–2 din mein pahunch jayega.",
-        "hi": "आपका {item} (ऑर्डर {oid}) {courier} के साथ रास्ते में है — अभी {where} पर है। 1–2 दिन में पहुँच जाएगा।",
+        "en": "*On the way* 🚚\nYour {item} (order {oid}) is with {courier}, last scanned at {where}. Expected in 1–2 days.",
+        "hinglish": "*Raaste mein hai* 🚚\nAapka {item} (order {oid}) {courier} ke saath raaste mein hai, abhi {where} par. 1–2 din mein pahunch jayega.",
+        "hi": "*रास्ते में है* 🚚\nआपका {item} (ऑर्डर {oid}) {courier} के साथ रास्ते में है, अभी {where} पर। 1–2 दिन में पहुँच जाएगा।",
     },
     "status_not_shipped": {
-        "en": "Your {item} (order {oid}) is {status} and hasn't been dispatched yet.",
-        "hinglish": "Aapka {item} (order {oid}) abhi {status} hai, dispatch nahi hua.",
-        "hi": "आपका {item} (ऑर्डर {oid}) अभी {status} है, भेजा नहीं गया।",
+        "en": "*Not shipped yet*\nYour {item} (order {oid}) is {status}. You'll get the tracking details as soon as it's dispatched.",
+        "hinglish": "*Abhi ship nahi hua*\nAapka {item} (order {oid}) abhi {status} hai, dispatch nahi hua. Dispatch hote hi tracking bhej denge.",
+        "hi": "*अभी भेजा नहीं गया*\nआपका {item} (ऑर्डर {oid}) अभी {status} है। भेजते ही ट्रैकिंग की जानकारी मिल जाएगी।",
     },
     "courier_down": {
         "en": "The courier's system isn't responding right now. I've passed your question to the seller with the details.",
@@ -65,50 +73,50 @@ T: dict[str, dict[Lang, str]] = {
         "hi": "कूरियर का सिस्टम अभी जवाब नहीं दे रहा। मैंने जानकारी के साथ विक्रेता को बता दिया है।",
     },
     "need_photo": {
-        "en": "Sorry about that! Please send a clear photo of the {item} so I can process it (policy: damaged items need a photo).",
-        "hinglish": "Maaf kijiye! {item} ki ek saaf photo bhej dijiye, phir main process kar dunga (policy: toote item ke liye photo zaroori hai).",
-        "hi": "माफ़ कीजिए! {item} की एक साफ़ फ़ोटो भेज दीजिए, फिर मैं प्रोसेस कर दूँगा (नियम: टूटे सामान के लिए फ़ोटो ज़रूरी है)।",
+        "en": "*Sorry about that.* 📷\nPlease send a clear photo of the {item}, and I'll take it from there.\n_Our policy needs a photo for damaged or wrong items._",
+        "hinglish": "*Maaf kijiye.* 📷\n{item} ki ek saaf photo bhej dijiye, phir main aage process kar dunga.\n_Policy: toote ya galat item ke liye photo zaroori hai._",
+        "hi": "*माफ़ कीजिए।* 📷\n{item} की एक साफ़ फ़ोटो भेज दीजिए, फिर मैं आगे प्रोसेस कर दूँगा।\n_नियम: टूटे या गलत सामान के लिए फ़ोटो ज़रूरी है।_",
     },
     "photo_received": {
         "en": "Got the photo, thanks.", "hinglish": "Photo mil gayi, shukriya.", "hi": "फ़ोटो मिल गई, शुक्रिया।",
     },
     "done_refund": {
-        "en": "Done ✅ {amount} refund for your {item} (order {oid}). It reaches your {method} in 5–7 working days.",
-        "hinglish": "Ho gaya ✅ {item} (order {oid}) ka {amount} refund kar diya. 5–7 working days mein aapke {method} par aa jayega.",
-        "hi": "हो गया ✅ {item} (ऑर्डर {oid}) का {amount} रिफ़ंड कर दिया। 5–7 कार्य दिवसों में आपके {method} पर आ जाएगा।",
+        "en": "*Done: refund approved* ✓\n{amount} for your {item} (order {oid}) is on its way to your {method}. It usually arrives in 5–7 working days.",
+        "hinglish": "*Ho gaya: refund approved* ✓\n{item} (order {oid}) ka {amount} refund aapke {method} par bhej diya. 5–7 working days mein aa jayega.",
+        "hi": "*हो गया: रिफ़ंड मंज़ूर* ✓\n{item} (ऑर्डर {oid}) का {amount} रिफ़ंड आपके {method} पर भेज दिया। 5–7 कार्य दिवसों में आ जाएगा।",
     },
     "done_return": {
-        "en": "Done ✅ Return pickup booked for your {item} (order {oid}). The courier will collect it in 1–2 days.",
-        "hinglish": "Ho gaya ✅ {item} (order {oid}) ka return pickup book ho gaya. Courier 1–2 din mein le jayega.",
-        "hi": "हो गया ✅ {item} (ऑर्डर {oid}) का रिटर्न पिकअप बुक हो गया। कूरियर 1–2 दिन में ले जाएगा।",
+        "en": "*Done: return pickup booked* ✓\nThe courier will collect your {item} (order {oid}) in 1–2 days. Please keep it packed.",
+        "hinglish": "*Ho gaya: return pickup book* ✓\nCourier 1–2 din mein aapka {item} (order {oid}) le jayega. Item pack karke rakhiye.",
+        "hi": "*हो गया: रिटर्न पिकअप बुक* ✓\nकूरियर 1–2 दिन में आपका {item} (ऑर्डर {oid}) ले जाएगा। सामान पैक करके रखिए।",
     },
     "done_address": {
-        "en": "Done ✅ The delivery address for order {oid} is now: {address}",
-        "hinglish": "Ho gaya ✅ Order {oid} ka naya address: {address}",
-        "hi": "हो गया ✅ ऑर्डर {oid} का नया पता: {address}",
+        "en": "*Done: address updated* ✓\nOrder {oid} will now be delivered to:\n{address}",
+        "hinglish": "*Ho gaya: address update* ✓\nOrder {oid} ab yahan deliver hoga:\n{address}",
+        "hi": "*हो गया: पता बदल दिया* ✓\nऑर्डर {oid} अब यहाँ डिलीवर होगा:\n{address}",
     },
     "done_cancel": {
-        "en": "Done ✅ Order {oid} ({item}) is cancelled.", "hinglish": "Ho gaya ✅ Order {oid} ({item}) cancel kar diya.",
-        "hi": "हो गया ✅ ऑर्डर {oid} ({item}) रद्द कर दिया।",
+        "en": "*Done: order cancelled* ✓\nOrder {oid} ({item}) is cancelled.", "hinglish": "*Ho gaya: order cancel* ✓\nOrder {oid} ({item}) cancel kar diya.",
+        "hi": "*हो गया: ऑर्डर रद्द* ✓\nऑर्डर {oid} ({item}) रद्द कर दिया।",
     },
     "escalated": {
-        "en": "I've sent your {what} for order {oid} to the seller for approval ({why}). You'll get a message here as soon as they decide.",
-        "hinglish": "Order {oid} ka {what} seller ko approval ke liye bhej diya hai ({why}). Jaise hi woh decide karenge, yahin message aa jayega.",
-        "hi": "ऑर्डर {oid} का {what} विक्रेता को मंज़ूरी के लिए भेज दिया है ({why})। जैसे ही वे फ़ैसला करेंगे, यहीं संदेश आ जाएगा।",
+        "en": "*Sent to the seller for approval* ⏳\nYour {what} for order {oid} checks out, but {why}, so the seller approves it personally. You'll hear back here.",
+        "hinglish": "*Seller ke approval ke liye bheja* ⏳\nOrder {oid} ka {what} sahi hai, par {why}, isliye seller khud approve karenge. Jawab yahin aayega.",
+        "hi": "*विक्रेता की मंज़ूरी के लिए भेजा* ⏳\nऑर्डर {oid} का {what} सही है, पर {why}, इसलिए विक्रेता ख़ुद मंज़ूरी देंगे। जवाब यहीं आएगा।",
     },
     "blocked": {
-        "en": "Order {oid} ({item}): I can't do this one: {why}{clause}\nIf you think this is wrong, reply \"human\" and I'll ask the seller.",
-        "hinglish": "Order {oid} ({item}): ye nahi ho payega — {why}{clause}\nAgar aapko lagta hai ye galat hai, \"human\" likhiye, main seller se poochh lunga.",
-        "hi": "ऑर्डर {oid} ({item}): यह नहीं हो पाएगा — {why}{clause}\nअगर आपको लगता है यह गलत है, \"human\" लिखिए, मैं विक्रेता से पूछ लूँगा।",
+        "en": "*Sorry, I can't do this one*\nOrder {oid} ({item}): {why}.{clause}\n\nThink this is wrong? Reply *human* and the seller will take a look.",
+        "hinglish": "*Maaf kijiye, ye nahi ho payega*\nOrder {oid} ({item}): {why}.{clause}\n\nLagta hai galat hai? *human* likhiye, seller khud dekhenge.",
+        "hi": "*माफ़ कीजिए, यह नहीं हो पाएगा*\nऑर्डर {oid} ({item}): {why}।{clause}\n\nलगता है गलत है? *human* लिखिए, विक्रेता ख़ुद देखेंगे।",
     },
     "frozen": {
-        "en": "The seller has paused refunds and changes for a while. Your request is noted and they'll get back to you.",
-        "hinglish": "Seller ne abhi refunds aur changes thodi der ke liye rok diye hain. Aapki request note ho gayi hai, woh jaldi sampark karenge.",
+        "en": "*Paused for a moment*\nThe seller has paused refunds and changes for a while. Your request is noted and they'll get back to you.",
+        "hinglish": "*Thodi der ke liye ruka hai*\nSeller ne abhi refunds aur changes thodi der ke liye rok diye hain. Aapki request note ho gayi hai, woh jaldi sampark karenge.",
         "hi": "विक्रेता ने अभी रिफ़ंड और बदलाव कुछ देर के लिए रोक दिए हैं। आपका अनुरोध दर्ज है, वे जल्द संपर्क करेंगे।",
     },
     "approved_done": {
-        "en": "Good news: the seller approved it ✅ {done}", "hinglish": "Achhi khabar: seller ne approve kar diya ✅ {done}",
-        "hi": "अच्छी ख़बर: विक्रेता ने मंज़ूरी दे दी ✅ {done}",
+        "en": "*Good news: the seller approved it* ✓\n{done}", "hinglish": "*Achhi khabar: seller ne approve kar diya* ✓\n{done}",
+        "hi": "*अच्छी ख़बर: विक्रेता ने मंज़ूरी दे दी* ✓\n{done}",
     },
     "rejected": {
         "en": "The seller couldn't approve your {what} for order {oid}. They'll contact you if anything else is possible.",
@@ -116,7 +124,7 @@ T: dict[str, dict[Lang, str]] = {
         "hi": "विक्रेता ऑर्डर {oid} का {what} मंज़ूर नहीं कर पाए। कुछ और संभव हुआ तो वे संपर्क करेंगे।",
     },
     "human": {
-        "en": "Sure. I've asked the seller to get back to you, with a summary of our chat.",
+        "en": "*Connecting you to the seller* 🙋\nI've sent them a summary of our chat. They'll reply here.",
         "hinglish": "Bilkul. Maine seller ko hamari baat ka summary bhej diya hai, woh aapse sampark karenge.",
         "hi": "बिल्कुल। मैंने विक्रेता को हमारी बातचीत का सार भेज दिया है, वे आपसे संपर्क करेंगे।",
     },
@@ -124,9 +132,14 @@ T: dict[str, dict[Lang, str]] = {
         "en": "Our policy: {text}", "hinglish": "Hamari policy: {text}", "hi": "हमारी नीति: {text}",
     },
     "other": {
-        "en": "I can help with order status, returns, refunds, address changes and cancellations. What would you like to do?",
-        "hinglish": "Main order status, return, refund, address change aur cancel mein madad kar sakta hoon. Kya karna hai?",
+        "en": "I can help with:\n• where your order is\n• returns and refunds\n• changing the address or cancelling\n\nWhat would you like to do?",
+        "hinglish": "Main inme madad kar sakta hoon:\n• order kahan hai\n• return aur refund\n• address badalna ya cancel\n\nKya karna hai?",
         "hi": "मैं ऑर्डर स्टेटस, रिटर्न, रिफ़ंड, पता बदलने और कैंसल में मदद कर सकता हूँ। क्या करना है?",
+    },
+    "choose_reason": {
+        "en": "*What happened with your {item}?* (order {oid})\n1. Arrived damaged\n2. Wrong item\n3. Never received it\n4. Changed my mind\n\nReply with the number.",
+        "hinglish": "*{item} ke saath kya hua?* (order {oid})\n1. Toota/kharab aaya\n2. Galat item aaya\n3. Mila hi nahi\n4. Mann badal gaya\n\nNumber bhej dijiye.",
+        "hi": "*{item} के साथ क्या हुआ?* (ऑर्डर {oid})\n1. टूटा/ख़राब आया\n2. गलत सामान आया\n3. मिला ही नहीं\n4. मन बदल गया\n\nनंबर भेज दीजिए।",
     },
     "busy": {
         "en": "We're getting a lot of messages right now. Please try again in a little while.",
@@ -184,7 +197,7 @@ def days_ago(when: str | datetime | None, lang: Lang) -> tuple[str, str]:
         return "", ""
     dt = datetime.fromisoformat(when) if isinstance(when, str) else when
     d = max(0, (datetime.now(timezone.utc) - dt).days)
-    date = dt.strftime("%d %b")
+    date = dt.astimezone(IST).strftime("%d %b")
     rel = {"en": "today" if d == 0 else f"{d} day{'s' if d != 1 else ''} ago",
            "hinglish": "aaj" if d == 0 else f"{d} din pehle", "hi": "आज" if d == 0 else f"{d} दिन पहले"}
     return rel.get(lang, rel["hinglish"]), date
@@ -194,7 +207,7 @@ def records_line(order: dict, shipment: dict | None, lang: Lang, window_days: in
     """One visible line showing what was verified against the shop's records (the order record is the invoice)."""
     created = order.get("created_at")
     when = (datetime.fromisoformat(created) if isinstance(created, str) else created) if created else None
-    ordered = when.strftime("%d %b") if when else "?"
+    ordered = when.astimezone(IST).strftime("%d %b") if when else "?"
     paid = rs(order["paid_paise"])
     method = "COD" if order.get("cod") else "UPI"
     parts = {"en": [f"ordered {ordered}", f"paid {paid} {method}"],
@@ -208,4 +221,70 @@ def records_line(order: dict, shipment: dict | None, lang: Lang, window_days: in
                       "hi": f"{d} दिन पहले डिलीवर ({window_days} दिन की अवधि के {'अंदर' if inside else 'बाहर'})"}
                      .get(lang, f"{d} din pehle deliver ({window_days} din ki window ke {'andar' if inside else 'bahar'})"))
     label = {"en": "Checked from records", "hi": "रिकॉर्ड से जाँचा"}.get(lang, "Records se check kiya")
-    return f"\n📋 {label}: " + " · ".join(parts)
+    return f"\n\n_{label}: " + " · ".join(parts) + "_"
+
+
+WEB = os.getenv("PUBLIC_WEB_URL", "https://kavach-agentx.vercel.app").rstrip("/")
+
+
+def ref_line(trace_id: str | None, channel: str, lang: Lang) -> str:
+    """Reference number on every decision; phones also get the receipt link (anyone can verify what was checked)."""
+    if not trace_id:
+        return ""
+    ref = "K-" + trace_id[-6:].upper()
+    label = {"en": "Ref", "hi": "संदर्भ"}.get(lang, "Ref")
+    if channel == "web":
+        return f"\n\n{label} {ref}"
+    return f"\n\n{label} {ref} · receipt: {WEB}/proof/{trace_id}"
+
+
+def policy_quote(clause: dict, lang: Lang) -> str:
+    text = clause["text_hinglish"] if lang == "hinglish" and clause.get("text_hinglish") else clause["text"]
+    label = {"en": "Shop policy", "hi": "दुकान की नीति"}.get(lang, "Shop policy")
+    return f"\n_{label}: \"{text}\"_"
+
+
+def greeting(name: str, orders: list[dict], lang: Lang) -> str:
+    """Warm, short, and useful: mention the order the customer most likely cares about, then what we can do."""
+    first = (name or "").split(" ")[0]
+    first = "" if first.lower() in ("demo", "customer", "") else first
+    moving = next((o for o in orders if o.get("status") == "shipped"), None)
+    hello = {"en": f"Hi{(' ' + first) if first else ''}! 👋 I'm Kavach, the shop's support assistant.",
+             "hi": f"नमस्ते{(' ' + first) if first else ''}! 👋 मैं कवच हूँ, दुकान का सहायक।"}.get(
+        lang, f"Namaste{(' ' + first) if first else ''}! 👋 Main Kavach hoon, shop ka support assistant.")
+    heads = ""
+    if moving:
+        heads = {"en": f"\nGood news: your *{moving['item']}* order is on the way.", "hi": f"\nआपका *{moving['item']}* ऑर्डर रास्ते में है।"}.get(
+            lang, f"\nAapka *{moving['item']}* order raaste mein hai.")
+    menu = {"en": "\n\nI can help you:\n• track an order\n• return or refund an item\n• change the address or cancel\n\nJust type what you need, in English, Hinglish or Hindi.",
+            "hi": "\n\nमैं इनमें मदद कर सकता हूँ:\n• ऑर्डर ट्रैक करना\n• रिटर्न या रिफ़ंड\n• पता बदलना या कैंसल\n\nजो चाहिए, लिख दीजिए।"}.get(
+        lang, "\n\nMain inme madad kar sakta hoon:\n• order track karna\n• return ya refund\n• address badalna ya cancel\n\nJo chahiye, likh dijiye: English, Hinglish ya Hindi.")
+    return hello + heads + menu
+
+
+def refund_status(refunds: list[dict], orders: list[dict], order_id: int | None, lang: Lang) -> str:
+    """'Where is my refund?' answered from the refund records, with the expected arrival date."""
+    names = {o["id"]: o["item"] for o in orders}
+    rows = [r for r in refunds if order_id is None or r.get("order_id") == order_id]
+    if not rows:
+        if order_id:
+            return {"en": f"*No refund yet on order {order_id}*\nNothing has been refunded on this order so far. Want me to look into it? Tell me what went wrong.",
+                    "hi": f"*ऑर्डर {order_id} पर अभी कोई रिफ़ंड नहीं*\nइस ऑर्डर पर अब तक कोई रिफ़ंड नहीं हुआ। क्या दिक़्क़त है, बताइए।"}.get(
+                lang, f"*Order {order_id} par abhi koi refund nahi*\nIs order par ab tak koi refund nahi hua. Kya dikkat hai, bataiye.")
+        return {"en": "*No refunds on your account yet*\nIf something went wrong with an order, tell me which one.",
+                "hi": "*आपके अकाउंट पर अभी कोई रिफ़ंड नहीं*\nकिसी ऑर्डर में दिक़्क़त हो तो बताइए।"}.get(
+            lang, "*Aapke account par abhi koi refund nahi*\nKisi order mein dikkat ho to bataiye.")
+    lines = []
+    for r in rows[:3]:
+        at = r.get("created_at")
+        dt = datetime.fromisoformat(at) if isinstance(at, str) else at
+        sent, eta = (dt.astimezone(IST).strftime("%d %b"), (dt + timedelta(days=7)).astimezone(IST).strftime("%d %b")) if dt else ("?", "?")
+        item = names.get(r.get("order_id"), f"order {r.get('order_id')}")
+        lines.append({"en": f"• {rs(r['amount_paise'])} for {item}: sent {sent}, arrives by {eta}",
+                      "hi": f"• {item} का {rs(r['amount_paise'])}: {sent} को भेजा, {eta} तक आ जाएगा"}.get(
+            lang, f"• {item} ka {rs(r['amount_paise'])}: {sent} ko bheja, {eta} tak aa jayega"))
+    head = {"en": "*Your refunds*", "hi": "*आपके रिफ़ंड*"}.get(lang, "*Aapke refunds*")
+    tail = {"en": "\n_Banks take 5–7 working days. Write \"human\" if it's later than that._",
+            "hi": "\n_बैंक 5–7 कार्य दिवस लेते हैं। देर हो तो \"human\" लिखिए।_"}.get(
+        lang, "\n_Bank 5–7 working days lete hain. Der ho to \"human\" likhiye._")
+    return head + "\n" + "\n".join(lines) + tail

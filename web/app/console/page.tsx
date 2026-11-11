@@ -11,6 +11,7 @@ import { OTHERS_ORDER, orderLine, triesFor, type Expect, type Try } from "@/lib/
 import Xray, { HowItDecides, VERDICT_TEXT, type AnyStep } from "@/components/proof/Xray";
 import { type Verdict } from "@/components/feed/VerdictChip";
 import { HowTo } from "@/components/ui/kit";
+import Markup from "@/components/Markup";
 
 type Line = { dir: "in" | "out"; text: string; trace?: string; verdict?: Verdict; photo?: boolean; expect?: Expect };
 
@@ -141,7 +142,7 @@ export default function Console() {
               <div key={i} className={`flex ${l.dir === "in" ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed ${l.dir === "in" ? "rounded-br-md bg-bone text-ink" : "rounded-bl-md border border-line bg-panel"}`}>
                   {l.photo && <span className="mb-1 flex items-center gap-1 text-[12.5px] opacity-70"><Camera size={12} />photo attached</span>}
-                  <span className="whitespace-pre-wrap">{l.text}</span>
+                  <span className="whitespace-pre-wrap">{l.dir === "out" ? <Markup text={l.text} /> : l.text}</span>
                   {l.dir === "out" && l.trace && (
                     <span className="mt-2 flex flex-wrap items-center gap-3 border-t border-line pt-2 text-[13px]">
                       {l.verdict && <span className="font-medium" style={{ color: VERDICT_TEXT[l.verdict].c }}>{VERDICT_TEXT[l.verdict].title}</span>}

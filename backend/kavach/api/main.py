@@ -387,7 +387,7 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         trigger = await app.state.pool.fetchval(
             "SELECT count(*) FROM pg_trigger WHERE tgname = 'audit_no_update' AND NOT tgisinternal")
         return {"api_runs_as": me, "checks": out, "audit_append_only_trigger": bool(trigger),
-                "write_attempt": {"sql": "INSERT INTO refunds(...) VALUES (...)  -- as " + me, "result": attempt}}
+                "write_attempt": {"sql": "INSERT INTO refunds(...) VALUES (...)", "as_role": me, "result": attempt}}
 
     @app.get("/api/proof/trace/{trace_id}")
     async def proof_trace(trace_id: str):

@@ -1,11 +1,12 @@
 "use client";
 import { Check, X, Loader2, ArrowRight } from "lucide-react";
 import { type Verdict } from "@/components/feed/VerdictChip";
-import { CLAIM, TOOL, reason } from "@/lib/words";
+import { CLAIM, READ_TOOL, TOOL, reason } from "@/lib/words";
 import { rupees, type Claim } from "@/lib/api";
 
 export type AnyStep = { stage: string; status: string; t_ms: number | null; verdict?: string; reasons?: string[]; claims?: unknown;
-  tool?: string; amount_paise?: number | null; calls?: string[]; intent?: string; guard_score?: number; guard_tags?: string[]; result?: string };
+  tool?: string; amount_paise?: number | null; calls?: string[]; intent?: string; guard_score?: number; guard_tags?: string[]; result?: string;
+  chosen?: string[]; added?: string[]; why?: string | null; tasks?: number };
 
 const FLOW = [["read", "Read records"], ["propose", "AI proposes"], ["verify", "Verifier checks"], ["route", "Decides"], ["reply", "Replies"]] as const;
 const dot = (s?: string) => (s === "ok" ? "var(--moss)" : s === "warn" ? "var(--amber)" : s === "fail" ? "var(--blood)" : "var(--line-2)");
@@ -39,6 +40,7 @@ export default function Xray({ steps, showWhy = true }: { steps: AnyStep[]; show
   const propose = last("propose");
   const read = last("read");
   const guard = last("guard");
+  const plans = steps.filter((s) => s.stage === "plan" && (s.chosen || s.added));
   const done = !!last("reply");
   const claims = ((verify?.claims as Claim[] | undefined) ?? []).filter((c) => typeof c === "object");
   const verdict = (route?.verdict ?? (done ? "NONE" : undefined)) as Verdict | undefined;
@@ -65,14 +67,27 @@ export default function Xray({ steps, showWhy = true }: { steps: AnyStep[]; show
         <div className="flex items-center gap-2.5 rounded-xl bg-panel2 px-4 py-3 text-[15px] text-muted"><Loader2 size={16} className="animate-spin" />Checking…</div>
       )}
 
-      {/* 2. what was asked */}
+      {/* 2. what the AI decided to look up (and what the safety rule insisted on) */}
+      {plans.length > 0 && (
+        <div className="space-y-1.5">
+          {plans.map((p, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-1.5 text-[13px]">
+              <span className="text-muted">{plans.length > 1 ? `Request ${i + 1}: looked up` : "Looked up"}</span>
+              {(p.chosen ?? []).map((t) => <span key={t} className="rounded-md bg-panel2 px-1.5 py-0.5" title="The AI chose this">{READ_TOOL[t] ?? t}</span>)}
+              {(p.added ?? []).map((t) => <span key={t} className="rounded-md border border-dashed border-line2 px-1.5 py-0.5 text-muted" title="Added by a safety rule: the verifier needs it">+ {READ_TOOL[t] ?? t}</span>)}
+            </div>))}
+          {plans.some((p) => (p.added ?? []).length > 0) && <p className="text-[12px] text-faint">Solid = the AI chose it · dashed = a safety rule added it</p>}
+          {plans[0]?.why && <p className="text-[12.5px] italic text-muted">AI&apos;s reason: {plans[0].why}</p>}
+        </div>)}
+
+      {/* 3. what was asked */}
       {propose?.tool && (
         <p className="text-[14.5px]"><span className="text-muted">AI asked to </span><b>{(TOOL[propose.tool] ?? propose.tool).toLowerCase()}{propose.amount_paise ? ` ${rupees(propose.amount_paise)}` : ""}</b>
           <span className="text-muted">. The verifier re-read the records:</span></p>)}
       {!propose?.tool && done && <p className="text-[14.5px] text-muted">Nothing to verify: just an answer, read from {read?.calls?.length ?? 0} record{read?.calls?.length === 1 ? "" : "s"}.</p>}
       {guard && (guard.guard_tags?.length ?? 0) > 0 && <p className="text-[13.5px] text-amber">Message flagged as {guard.guard_tags!.map((t) => t.toLowerCase().replace(/_/g, " ")).join(", ")}</p>}
 
-      {/* 3. each check, failures first */}
+      {/* 4. each check, failures first */}
       {sorted.length > 0 && (
         <ul className="space-y-1">
           {sorted.map((c, i) => (
@@ -86,7 +101,7 @@ export default function Xray({ steps, showWhy = true }: { steps: AnyStep[]; show
             </li>))}
         </ul>)}
 
-      {/* 4. where we are in the pipeline */}
+      {/* 5. where we are in the pipeline */}
       <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 border-t border-line pt-3 text-[12px] text-faint" aria-label="Steps">
         {FLOW.map(([st, label], i) => {
           const s = last(st);
