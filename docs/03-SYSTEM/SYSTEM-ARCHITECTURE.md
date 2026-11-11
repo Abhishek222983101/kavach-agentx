@@ -685,13 +685,28 @@ The full brief is `../02-PRODUCT/UI-UX-BRIEF.md` (D-13): the Tessera landing and
 - **6.7 Playwright smoke:** load each route, send one chat, see the X-ray complete.
 **Acceptance:** a real message from a phone lights the X-ray within ~1 s of arrival; every route renders on a phone-width screen.
 
-### Phase 7: Deploy (Lane A, 1 h)
-- **7.1** Create the VPS; install Docker; clone; `.env` on the server only.
-- **7.2** Caddy on `<ip>.sslip.io`; `docker compose up -d`; `just seed`.
-- **7.3** Point Twilio and Telegram webhooks to `PUBLIC_BASE_URL`.
-- **7.4** UptimeRobot on `/health`, alert to Telegram; `scripts/smoke.sh` in cron every 30 min.
-- **7.5** Run `insecure-defaults` and `sharp-edges` checks; fix criticals.
-**Acceptance:** from a phone on mobile data: web chat, WhatsApp and Telegram all work against the VPS.
+### Phase 7: Deploy (1 h) — revised 2026-11-12 (D-08, D-16)
+- **7.1 Render (Singapore, free):** one Docker web service runs store + trust + api with honcho; env vars set in the Render dashboard only (never in git); `KAVACH_ENV=prod`, `WEB_ORIGINS=<vercel url>`, `WHATSAPP_MODE=webhook`, `TELEGRAM_MODE=webhook`.
+- **7.2 Vercel (free):** `web/` with `NEXT_PUBLIC_API_URL=<render url>`.
+- **7.3 Webhooks:** Twilio sandbox "When a message comes in" → `<render>/webhooks/whatsapp` (signature checked); Telegram `setWebhook` with the secret token.
+- **7.4 Keep-awake:** GitHub Actions cron pings `/health` every 10 min until 16 Nov (Render free sleeps after 15 min).
+- **7.5 Checks:** latency from India measured and recorded; CORS only for the Vercel origin; no secrets in client bundles (`grep` the build); one full flow from a phone on mobile data.
+**Acceptance:** a judge on a phone can use the website, WhatsApp and Telegram against the hosted backend.
+
+### Phase 4b: Seller alert calls (1 h) — added 2026-11-12 (D-21)
+Port of Voight/decoy `server/routes/callme.py` (same Twilio account and caller ID).
+- **4b.1 Triggers (high risk only):**
+  (a) attack burst: ≥ 3 BLOCKs from one customer in 10 min;
+  (b) hidden instruction found in the records (e.g. an order note) or the guard's injection tag on a channel message;
+  (c) a refund ≥ the hard cap waiting > 10 min with no decision on Telegram/WhatsApp;
+  (d) payouts today above a spend threshold (suggests the kill switch).
+  Never for web-demo test sessions (`verify_`/`test_`/`eval_`).
+- **4b.2 Script:** ≤ 85 words, facts only from the records ("Kavach here. Someone tried to get a ₹5,000 refund on order 200277 by claiming to be the owner. It was blocked. Nothing was paid."), en-IN voice, `TimeLimit` 35 s.
+- **4b.3 Safety and cost:** the number dialled comes only from env (`CALL_TO`); nothing in a message can change it. Cooldown 30 min, ≤ 3 automatic calls/day, events during a cooldown are counted and mentioned in the next call. Test mode by default (`CALL_DRY_RUN=1` logs the script). Ledger in Postgres (`usage_counters`).
+- **4b.4 Take the decision on the call (needs Phase 7's public URL):** "press 1 to approve, 2 to reject" with Twilio `<Gather>`; the action webhook is signature-checked, maps to the same `decide()` path as WhatsApp/Telegram, and the verifier re-checks before paying.
+- **4b.5 UI:** the seller console shows "Phone alerts: on/off · calls today · last call"; each receipt that caused a call shows "📞 seller was called". The live demo shows the alert as a card (the call itself only rings the seller's phone).
+- **4b.6 Tests:** fake transport (no real calls) for triggers, caps, cooldown, test sessions, and webhook signature.
+**Acceptance:** a scam burst in the demo produces exactly one real call to the seller (on camera for the video), and further attempts within the cooldown don't ring again.
 
 ### Phase 8: Eval, arena numbers, chaos (Lane B, 2–3 h)
 - **8.1 Scenarios:** ≈ 60 YAML files (§11.6), written blind to verifier code where possible.

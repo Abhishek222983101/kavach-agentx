@@ -10,7 +10,7 @@ Details, limits and gotchas: `SYSTEM-ARCHITECTURE.md` §12. Credentials are impo
 
 | Service | Purpose | Account owner | Env vars | Status |
 |---|---|---|---|---|
-| Twilio (WhatsApp sandbox, Voice) | Primary channel; alert call | Owner, **Voight's upgraded account only** (`lynky-test` is office work: never use) | `TWILIO_*`, `ALERT_CALL_*` | 🟡 credentials imported from Voight; sandbox join code `silver-lion`; webhook not set yet; cost caps per D-14. Uses the account **Auth Token** (Voight's setup), not a separate API key `[OBSERVED]` |
+| Twilio (WhatsApp sandbox, Voice) | Primary channel; alert call | Owner, **Voight's upgraded account only** (`lynky-test` is office work: never use) | `TWILIO_*`, `ALERT_CALL_*` | 🟡 credentials imported from Voight; sandbox join code `ask-contain` (12 Nov); WhatsApp live in poll mode; cost caps per D-14/D-20; **Voice alert calls planned (D-21)**: $0.0496/min to Indian mobiles, +1 caller ID, ≤ 35 s, test mode by default. Uses the account **Auth Token** (Voight's setup), not a separate API key `[OBSERVED]` |
 | Telegram Bot API | Channel + seller approvals | Team | `TELEGRAM_*` | 🟡 Voight's bot token imported; the bot is named for Voight, so create a new `@…kavach…bot` for branding (2 min) or accept the name |
 | Gmail SMTP | Emails | Team | `SMTP_*` | 🟡 Voight's Gmail app password imported (same password works for SMTP) |
 | Gemini | Main LLM | Owner (free tier, key from ETHGlobal `adx/.env`) | `GEMINI_*` | ✅ works on `gemini-3-flash-preview` (2.4 s); `gemini-2.5-flash` errored on this key `[OBSERVED 2026-11-11]` |

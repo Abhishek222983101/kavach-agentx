@@ -44,7 +44,14 @@ Ask for **last Tuesday**, not "the process". Concrete examples expose the real r
 
 ### What we heard (owner's words)
 
-> [paste the exact words]
+> 2026-11-12: "this still is not that hard u can just prompt an ai to not give the money... how do we make ourselves stand out... we need to make things proper prod level"
+> 2026-11-12: "we need to design trust for both the entities customer and the seller... there has to be visual proof... so the judges believe we have done actual engineering"
+> 2026-11-12: "we need to spoon feed them everything... keep things clean so it is minimal, clear flow is visible in the ui itself"
+> 2026-11-12: "dont unnesaary waste our credits bro we need to keep things properly setup for future and all the testing works aswell"
+> 2026-11-12: "if anything vulnerable and high risk was found it used to call me instantly... less credits were being burnt" (alert calls, from decoy)
+> 2026-11-12: "lets finish everything else and at the end lets do ml aswell... we will not leave anything behind"
+
+**Interpretation:** the owner judges the product by whether a sceptical judge can *see* the engineering (proof on screen, not claims), whether a first-time visitor knows what to click, and whether it is cheap and safe to leave running until 16 Nov. They want every feature that strengthens the story, in a safe order.
 
 ### What it means
 
