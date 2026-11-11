@@ -1,0 +1,25 @@
+---
+doc: decisions
+status: active
+last_updated: 2026-11-11
+---
+
+# Decisions
+
+The full table with reasons is in `../03-SYSTEM/SYSTEM-ARCHITECTURE.md` §4. Summary:
+
+| ID | Date | Decision | Decided by |
+|---|---|---|---|
+| D-01 | 2026-11-11 | WhatsApp primary (Twilio sandbox); Telegram and web chat co-equal fallbacks | Owner (WhatsApp + Telegram both) + agent |
+| D-02 | 2026-11-11 | Python backend, Next.js 16 frontend (Tessera stack); no Rust/Go | Agent recommendation, owner asked for "fastest"; open to challenge |
+| D-03 | 2026-11-11 | LangGraph spine only; no multi-agent swarm; no n8n | Agent |
+| D-04 | 2026-11-11 | Agent, executor and store run as separate processes with separate DB roles | Agent |
+| D-05 | 2026-11-11 | Postgres on Neon (local: Compose) | Agent, after owner chose free hosting |
+| D-06 | 2026-11-11 | ML: trained guard + online seller preference; reused photo/ASR models; ML never overrides BLOCK | Owner wants real ML; agent scoped it |
+| D-07 | 2026-11-11 | Gemini → Groq; Claude only if a working key/gateway appears | Owner (free tier only) |
+| D-08 | 2026-11-11 | Vercel (web) + Render free (backend, 3 processes in 1 container) + Neon + GitHub Actions keepalive | Owner: "we use vercel, no pay" |
+| D-09 | 2026-11-11 | No native app; WhatsApp + mobile web console | Agent; owner had asked |
+| D-10 | 2026-11-11 | Fresh repo, all commits inside the window; reusing our own earlier code allowed | Owner (mentors confirmed) |
+| D-11 | 2026-11-11 | Four core docs, not twelve | Agent (time) |
+| D-12 | 2026-11-11 | Serve a distilled student guard (fits 512 MB); report teacher + student | Agent |
+| D-13 | 2026-11-11 | UI = Tessera landing and design system + ETHGlobal light/dark toggle | Owner |

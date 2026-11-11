@@ -1,0 +1,12 @@
+{
+  "project_name": "Kavach (AgentX PS-04)",
+  "onboarded": true,
+  "stage": "design done, build not started",
+  "current_focus": "Ship the verifier+executor core, agent, WhatsApp/Telegram, live console and a measured guard model by 12 Nov 10:00 IST",
+  "next_question": "Q-04: can we pay for an hourly VPS? (and put Gemini/Groq/W&B keys in .env)",
+  "open_questions": 10,
+  "assumptions": 8,
+  "handoff_ready": false,
+  "last_session": "2026-11-11",
+  "last_updated": "2026-11-11"
+}

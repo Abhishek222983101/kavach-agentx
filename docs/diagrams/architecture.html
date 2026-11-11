@@ -1,0 +1,211 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kavach Architecture</title><style>
+:root{--bg:#fafaf7;--fg:#151515;--card:#fff;--line:#e3e3dc}
+@media (prefers-color-scheme:dark){:root{--bg:#111;--fg:#eee;--card:#1b1b1b;--line:#333}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+main{max-width:1200px;margin:auto;padding:16px} section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:16px 0;overflow-x:auto}
+</style></head><body><main><h1>Kavach: system diagrams</h1><p>Generated from docs/03-SYSTEM/SYSTEM-ARCHITECTURE.md §8 by scripts/build_diagrams.py.</p><section><h2>8.0 Master diagram: everything end to end</h2><pre class="mermaid">flowchart TB
+  subgraph CH[&quot;1 Channels (who talks to Kavach)&quot;]
+    WA[&quot;WhatsApp&lt;br/&gt;Twilio sandbox +14155238886&quot;]
+    TGc[&quot;Telegram bot&quot;]
+    WEBc[&quot;Web chat (judge page / arena)&quot;]
+    SELL[&quot;Seller: WhatsApp · Telegram · console&quot;]
+  end
+  subgraph EDGE[&quot;2 Edge&quot;]
+    CADDY[&quot;Render TLS (backend) · Vercel (web)&quot;]
+    RL[&quot;Rate limits · send caps&quot;]
+  end
+  subgraph GWY[&quot;3 Gateway (api process)&quot;]
+    SIG[&quot;Verify signature / secret token&quot;]
+    DED[&quot;Dedupe MessageSid&quot;]
+    ASR[&quot;Voice note → text&lt;br/&gt;Groq Whisper (stretch)&quot;]
+    NORM[&quot;InboundMessage&quot;]
+  end
+  subgraph AGT[&quot;4 Agent runtime: LangGraph (api process, read-only DB role, no secret)&quot;]
+    ING[&quot;ingest&quot;] --&gt; GRD[&quot;guard score&quot;] --&gt; UND[&quot;understand&lt;br/&gt;LLM JSON&quot;] --&gt; RD[&quot;read loop ≤8&lt;br/&gt;get_order · track_shipment&lt;br/&gt;search_policy · history&quot;] --&gt; DEC{&quot;decide&quot;}
+    DEC --&gt;|answer only| CMP[&quot;compose&lt;br/&gt;facts from templates, tone from LLM&quot;]
+    DEC --&gt;|write needed| PRP[&quot;propose_* + claims&quot;]
+    DEC --&gt;|stuck| ESC[&quot;escalate_to_human + summary&quot;]
+    INT[&quot;interrupt: wait for seller&quot;]
+  end
+  subgraph ML[&quot;5 ML / DL&quot;]
+    GM[&quot;Manipulation Guard&lt;br/&gt;fine-tuned mDeBERTa/MuRIL · ONNX&quot;]
+    SP[&quot;Seller preference&lt;br/&gt;online logistic model&quot;]
+    PH[&quot;Photo check: pHash + Smaug (stretch)&quot;]
+    LLMS[&quot;LLMs: Gemini → Groq → (Claude)&quot;]
+  end
+  subgraph VER[&quot;6 Verifier&quot;]
+    REQ[&quot;required claims per tool&quot;] --&gt; T0[&quot;T0 re-fetch + checks&lt;br/&gt;ownership · state · window · amount&lt;br/&gt;duplicate · eligibility · evidence · frequency&quot;] --&gt; T1[&quot;T1 policy quote-or-fail (BM25)&quot;] --&gt; RT{&quot;risk router&quot;}
+  end
+  subgraph EXE[&quot;7 Executor (separate process, writer role + HMAC secret)&quot;]
+    TOK[&quot;check token: HMAC · args hash · TTL · nonce&quot;] --&gt; KS[&quot;kill switch · daily caps&quot;] --&gt; WR[&quot;write with idempotency key&quot;]
+  end
+  subgraph STO[&quot;8 Mock Store API (separate process)&quot;]
+    ORD[&quot;orders&quot;]; SHP[&quot;shipments + chaos&quot;]; PAY[&quot;payments / refunds&quot;]; RET[&quot;returns&quot;]; POL[&quot;policy clauses&quot;]
+  end
+  subgraph DATA[&quot;9 Postgres&quot;]
+    TBL[(&quot;store tables&quot;)]; CKP[(&quot;LangGraph checkpoints&quot;)]; EVT[(&quot;events&quot;)]; AUD[(&quot;audit_log hash chain&lt;br/&gt;append-only trigger&quot;)]; PREC[(&quot;seller precedents&quot;)]
+  end
+  subgraph OBS[&quot;10 Console + evidence&quot;]
+    XR[&quot;Judge page: live X-ray · counters · QR&quot;]; AR[&quot;Arena: plain agent B0 vs Kavach&quot;]; SC[&quot;Seller console: queue · kill switch · log · memory&quot;]; RES[&quot;Results: eval + W&amp;B&quot;]
+  end
+  subgraph OFF[&quot;11 Offline (laptop GPU)&quot;]
+    GEN[&quot;data gen + public sets&quot;] --&gt; CLN[&quot;dedupe · split by generator&quot;] --&gt; TRN[&quot;train RTX 5050 · W&amp;B&quot;] --&gt; CAL[&quot;calibrate · threshold · ONNX parity&quot;]
+    EVH[&quot;eval harness: 60 scenarios × 5 runs&quot;]
+  end
+  subgraph OUT[&quot;12 Outbound&quot;]
+    SMTPo[&quot;Email (SMTP)&quot;]; CALL[&quot;Alert call (Twilio Voice, stretch)&quot;]
+  end
+  WA &amp; TGc &amp; WEBc --&gt; CADDY --&gt; RL --&gt; SIG --&gt; DED --&gt; ASR --&gt; NORM --&gt; ING
+  GRD --&gt; GM
+  UND &amp; CMP &amp; ESC --&gt; LLMS
+  RD --&gt;|HTTP reader key| STO
+  PRP --&gt; REQ
+  T0 --&gt;|re-read| STO
+  RT --&gt;|BLOCK| CMP
+  RT --&gt;|ALLOW + token| TOK
+  RT --&gt;|ESCALATE| INT --&gt; SELL
+  SELL --&gt;|approve / edit| REQ
+  SELL --&gt; SP
+  SP -.suggests limit.-&gt; SC
+  GM -.adds caution only.-&gt; RT
+  PH -.evidence claim.-&gt; T0
+  WR --&gt;|HTTP writer key| STO --&gt; TBL
+  WR --&gt; AUD
+  WR --&gt; CMP
+  CMP --&gt; WA &amp; TGc &amp; WEBc
+  WR --&gt; SMTPo
+  RT -.critical block.-&gt; CALL
+  AGT -.checkpoints.-&gt; CKP
+  AGT &amp; VER &amp; EXE -.events.-&gt; EVT --&gt; XR &amp; AR &amp; SC
+  SELL --&gt; PREC
+  CAL --&gt; GM
+  EVH --&gt; RES
+  AR --&gt; AGT
+</pre></section><section><h2>8.1 System context</h2><pre class="mermaid">flowchart LR
+  subgraph Users
+    C[Customer WhatsApp / Telegram / Web]
+    S[Seller WhatsApp / Telegram / Console]
+    J[Judge phone + browser]
+  end
+  subgraph Edge
+    CAD[Caddy TLS]
+  end
+  subgraph Kavach
+    GW[Channel Gateway&lt;br/&gt;verify signature, dedupe, ASR]
+    AG[Agent Runtime&lt;br/&gt;LangGraph]
+    GD[(Guard model&lt;br/&gt;ONNX)]
+    VF[Verifier&lt;br/&gt;T0 claims · T1 policy · risk router]
+    EX[Executor&lt;br/&gt;separate process, signed verdicts]
+    ST[Mock Store API&lt;br/&gt;orders · shipments · payments]
+    EV[Event bus + SSE]
+    AU[(Audit log&lt;br/&gt;hash chain)]
+    DB[(Postgres)]
+    CON[Web console&lt;br/&gt;judge · arena · seller · results]
+  end
+  subgraph External
+    TW[Twilio WhatsApp + Voice]
+    TG[Telegram Bot API]
+    SM[SMTP]
+    LLM[Gemini → Groq]
+    WB[Weights &amp; Biases]
+  end
+  C --&gt; TW --&gt; CAD --&gt; GW
+  C --&gt; TG --&gt; CAD
+  J --&gt; CON
+  CAD --&gt; CON
+  GW --&gt; AG
+  AG --&gt;|read tools, HTTP| ST
+  AG --&gt; LLM
+  AG --&gt; GD
+  AG --&gt;|proposal| VF
+  VF --&gt;|re-read| ST
+  VF --&gt;|ALLOW / APPROVED token| EX
+  VF --&gt;|ESCALATE| S
+  S --&gt;|approve / reject| VF
+  EX --&gt;|write, HTTP| ST
+  EX --&gt; AU
+  AG --&gt; EV
+  VF --&gt; EV
+  EX --&gt; EV
+  EV --&gt; CON
+  ST --- DB
+  AU --- DB
+  AG -.checkpoints.-&gt; DB
+  GW --&gt; SM
+  EX -.critical alert.-&gt; TW
+  GD -.trained and logged.-&gt; WB
+</pre></section><section><h2>8.2 One customer message, end to end</h2><pre class="mermaid">sequenceDiagram
+  participant C as Customer
+  participant G as Gateway
+  participant A as Agent
+  participant M as Guard (ML)
+  participant S as Store API
+  participant V as Verifier
+  participant X as Executor
+  participant H as Seller
+  C-&gt;&gt;G: &quot;Order 1042 toota hua aaya, ₹1,299 refund chahiye&quot; (text or voice)
+  G-&gt;&gt;G: verify signature, dedupe MessageSid, transcribe voice
+  G-&gt;&gt;A: normalized message + trace_id
+  A-&gt;&gt;M: score message (risk, tags)
+  A-&gt;&gt;S: get_order(1042), track_shipment, search_policy
+  A-&gt;&gt;V: propose issue_refund(1042, ₹1,299) + claims
+  V-&gt;&gt;S: re-read order, shipment, refunds
+  V-&gt;&gt;V: required claims present? each check passes? quote in policy?
+  V--&gt;&gt;A: ESCALATE (over auto-limit ₹500)
+  V-&gt;&gt;H: summary + Approve / Reject
+  H-&gt;&gt;V: Approve (re-verified)
+  V-&gt;&gt;X: signed verdict (args hash, exp, nonce)
+  X-&gt;&gt;S: POST /refunds (writer key, idempotency key)
+  X-&gt;&gt;X: append audit row (hash chain)
+  A-&gt;&gt;C: templated reply in customer&#x27;s language
+</pre></section><section><h2>8.3 The decision</h2><pre class="mermaid">flowchart TD
+  P[Action proposal] --&gt; R{All required claims present?}
+  R -- no --&gt; B1[BLOCK: missing_claim]
+  R -- yes --&gt; T0{T0 checks pass?&lt;br/&gt;ownership · state · window · amount · duplicate · eligibility · evidence}
+  T0 -- no --&gt; B2[BLOCK + log reason]
+  T0 -- yes --&gt; T1{Policy quote found verbatim?}
+  T1 -- no --&gt; B3[BLOCK: invented policy]
+  T1 -- yes --&gt; SRC{Sources reachable?}
+  SRC -- no --&gt; E1[ESCALATE: source_unavailable]
+  SRC -- yes --&gt; RK{Risk features&lt;br/&gt;over limit · refund velocity · guard score · injection flags}
+  RK -- clean --&gt; A[ALLOW → signed token]
+  RK -- any flag --&gt; E2[ESCALATE → seller decides]
+  E2 -- approve --&gt; RV[Re-verify, then APPROVED token]
+  E2 -- reject --&gt; RJ[Rejected, customer told, precedent stored]
+</pre></section><section><h2>8.4 ML flow</h2><pre class="mermaid">flowchart LR
+  subgraph Data
+    PUB[Public sets&lt;br/&gt;craftloop · deepset · jailbreak sets]
+    GEN[LLM-generated Hinglish/Hindi/EN&lt;br/&gt;benign + manipulative + hard negatives]
+    HW[Hand-written test ~40 + arena logs]
+  end
+  PUB --&gt; CL[Clean · dedupe MinHash · leakage check]
+  GEN --&gt; CL
+  CL --&gt; SP[Group split by template family and generator]
+  SP --&gt; TR[Fine-tune on RTX 5050&lt;br/&gt;3 seeds · W&amp;B]
+  TR --&gt; CAL[Temperature scaling + threshold at FPR ≤ 2%]
+  CAL --&gt; EXP[ONNX export + parity gate]
+  EXP --&gt; SRV[Serve in API process]
+  HW --&gt; EVL[Evaluate vs baselines]
+  SP --&gt; EVL
+  SRV --&gt; EVL
+  SRV --&gt; AGENT[Agent + Verifier router]
+  AGENT --&gt; PREC[Seller approve/reject → online learner → limit suggestion]
+</pre></section><section><h2>8.5 Deployment</h2><pre class="mermaid">flowchart LR
+  U[Judge / customer / seller] --&gt; V[Vercel: Next.js web]
+  U --&gt; TW[Twilio WhatsApp] --&gt; R
+  U --&gt; TG[Telegram] --&gt; R
+  V --&gt;|HTTPS + SSE, CORS| R
+  subgraph R[Render free web service, one container, 512 MB]
+    API[api :PORT public]
+    EXE[executor :8100 localhost]
+    STO[store :8200 localhost]
+    API --&gt; EXE --&gt; STO
+    API --&gt; STO
+  end
+  R --&gt; NEON[(Neon Postgres)]
+  GH[GitHub Actions keepalive every 4 min] --&gt; R
+  UR[UptimeRobot alert to Telegram] --&gt; R
+</pre></section></main>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'default'});</script></body></html>

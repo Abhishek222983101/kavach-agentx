@@ -1,0 +1,16 @@
+.claude/state/
+*.db
+dist/
+.DS_Store
+.env
+.env.*
+!.env.example
+handoff/
+*.log
+node_modules/
+*.pyc
+__pycache__/
+.pytest_cache/
+*.sqlite
+.venv/
+docs/05-SESSIONS/raw/
