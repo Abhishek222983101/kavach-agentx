@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app import llm
+from kavach import llm
 
 
 @pytest.mark.asyncio

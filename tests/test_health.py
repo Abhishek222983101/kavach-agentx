@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.main import app
+from kavach.api.main import app
 
 
 def test_health_ok_and_leaks_no_keys(monkeypatch):

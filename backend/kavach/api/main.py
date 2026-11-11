@@ -3,7 +3,7 @@ import time
 
 from fastapi import FastAPI
 
-from app import llm
+from kavach import llm
 
 app = FastAPI(title="Kavach", version="0.1.0")
 _started = time.time()
