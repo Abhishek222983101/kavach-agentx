@@ -28,8 +28,8 @@ EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
 
 class TwilioWhatsApp:
     def __init__(self, sid: str, token: str, sender: str, caps, *, transport: httpx.AsyncBaseTransport | None = None,
-                 min_gap_s: float = 3.0):
-        self.sid, self.sender, self.caps = sid, sender, caps
+                 min_gap_s: float = 3.0, budget=None):
+        self.sid, self.sender, self.caps, self.budget = sid, sender, caps, budget
         self._c = httpx.AsyncClient(auth=(sid, token), timeout=15, transport=transport)
         self._lock = asyncio.Lock()
         self._last = 0.0
@@ -43,6 +43,11 @@ class TwilioWhatsApp:
         if not self.caps.allow_whatsapp_out():
             log.warning("daily WhatsApp cap reached; message not sent")
             return
+        if self.budget is not None:
+            if not await self.budget.allow():
+                log.warning("WhatsApp budget exhausted; message not sent")
+                return
+            await self.budget.charge()
         to = to if to.startswith("whatsapp:") else f"whatsapp:{to}"
         async with self._lock:                                  # sandbox: one message every 3 seconds
             wait = self.min_gap_s - (time.monotonic() - self._last)
@@ -100,6 +105,10 @@ async def _process_inbound(app, form: dict[str, Any]) -> None:
         return
     if body.lower().startswith("join "):          # the sandbox handles joins itself
         return
+    if st.whatsapp.budget is not None:            # Twilio bills inbound messages too: count them
+        await st.whatsapp.budget.charge()
+        if not await st.whatsapp.budget.allow():
+            return                                # over budget: stay silent rather than spend more
     seller_number = st.seller_whatsapp
     if seller_number and frm == f"whatsapp:{seller_number.removeprefix('whatsapp:')}":
         reply = await seller.handle(app, body, "whatsapp")

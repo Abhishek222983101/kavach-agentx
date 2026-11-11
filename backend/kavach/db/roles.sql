@@ -26,3 +26,4 @@ GRANT EXECUTE ON FUNCTION audit_verify(regclass) TO kavach_reader, kavach_writer
 -- Phase 3: the gateway records photos customers send as evidence (not money movement; the verifier
 -- still decides). LangGraph checkpoint grants are applied by migrate.py after the saver creates its tables.
 GRANT INSERT ON photos TO kavach_reader;
+GRANT INSERT, UPDATE ON usage_counters TO kavach_reader;

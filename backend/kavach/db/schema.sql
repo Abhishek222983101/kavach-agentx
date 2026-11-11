@@ -251,3 +251,9 @@ CREATE SEQUENCE IF NOT EXISTS demo_seq START 1;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_demo boolean NOT NULL DEFAULT false;
 ALTER TABLE photos ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'seed';
 ALTER TABLE photos ADD COLUMN IF NOT EXISTS media_type text;
+
+-- Phase 4b: persistent usage counters (WhatsApp budget survives restarts)
+CREATE TABLE IF NOT EXISTS usage_counters (
+  key  text PRIMARY KEY,
+  n    integer NOT NULL DEFAULT 0
+);

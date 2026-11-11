@@ -47,8 +47,10 @@ async def handle(app, text: str, via: str) -> str | None:
             """SELECT count(*) FILTER (WHERE verdict='ALLOW') a, count(*) FILTER (WHERE verdict='BLOCK') b
                FROM verdicts WHERE ts > now() - interval '1 day'""")
         lines = [f"#{p['id']}: {p['summary'][:110]}" for p in pending[:5]]
+        wa = getattr(st, "whatsapp", None)
+        budget = ("\n" + await wa.budget.summary()) if wa is not None and wa.budget is not None else ""
         return (f"🛡 Kavach today: {stats['a']} handled automatically, {stats['b']} blocked, {len(pending)} waiting for you."
-                + ("\n" + "\n".join(lines) + "\nReply 'approve <n>' or 'reject <n>'." if lines else ""))
+                + ("\n" + "\n".join(lines) + "\nReply 'approve <n>' or 'reject <n>'." if lines else "") + budget)
     if aid is None:
         if not pending:
             return "Nothing is waiting for you right now."

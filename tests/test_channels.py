@@ -196,3 +196,18 @@ async def test_telegram_orders_and_help_commands(chan, fake):
     sent = [m["text"] for m in rec.tg if m.get("chat_id") == "556"]
     assert "Your demo orders" in sent[0] and "Bluetooth speaker" in sent[0]
     assert "/orders" in sent[1]
+
+
+async def test_whatsapp_budget_is_persistent_and_hard(chan, fake):
+    from kavach.gateway.budget import WhatsAppBudget
+    c, app, rec = chan
+    budget = WhatsAppBudget(app.state.pool, limit=(await WhatsAppBudget(app.state.pool).used()) + 3)
+    app.state.whatsapp.budget = budget
+    cust = "+919855555555"
+    await wa(c, app, cust, "namaste", "SM" + "n" * 32)      # inbound counts 1, reply counts 1
+    assert len(to(rec, cust)) == 1
+    await wa(c, app, cust, "namaste", "SM" + "o" * 32)      # inbound counts 1 -> budget reached, no reply
+    assert len(to(rec, cust)) == 1
+    assert not await budget.allow()
+    fresh = WhatsAppBudget(app.state.pool, limit=budget.limit)  # a "restart" sees the same count
+    assert await fresh.used() == await budget.used()

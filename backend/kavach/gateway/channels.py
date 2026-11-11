@@ -29,7 +29,9 @@ async def setup(app) -> None:
     if sid and token and sender and mode != "off":
         from kavach.gateway.whatsapp import TwilioWhatsApp, poll_loop
 
-        st.whatsapp = TwilioWhatsApp(sid, token, sender, st.caps)
+        from kavach.gateway.budget import WhatsAppBudget
+
+        st.whatsapp = TwilioWhatsApp(sid, token, sender, st.caps, budget=WhatsAppBudget(st.pool))
         st.out.channels["whatsapp"] = st.whatsapp.send
         if st.seller_whatsapp:
             st.out.seller_targets.append(("whatsapp", st.seller_whatsapp))
