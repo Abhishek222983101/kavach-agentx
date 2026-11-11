@@ -71,6 +71,7 @@ export const kavach = {
   proofAudit: (limit = 12) => call<ProofAudit>(`/api/proof/audit?limit=${limit}`),
   proofTamper: () => call<TamperOut>("/api/proof/tamper", { method: "POST" }),
   calls: () => call<CallsView>("/api/seller/calls"),
+  callNow: (id: number) => call<{ action: string }>(`/api/seller/approvals/${id}/call`, { method: "POST", pin: true }),
   recent: () => call<{ trace_id: string; verdict: string; reasons: string[]; tool: string; ts: string; channel: string | null }[]>("/api/proof/recent"),
   proofRoles: () => call<ProofRoles>("/api/proof/roles"),
   trace: (id: string) => call<Trace>(`/api/proof/trace/${encodeURIComponent(id)}`),

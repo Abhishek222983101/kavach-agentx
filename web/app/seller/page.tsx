@@ -39,6 +39,16 @@ export default function Seller() {
     try { await kavach.decide(a.id, d, true); toast.success(d === "approve" ? "Approved. Re-checked and paid." : "Rejected. Customer told."); setItems((x) => x.filter((y) => y.id !== a.id)); }
     catch (e) { toast.error(e instanceof ApiError ? e.message : "Couldn't record that"); } finally { setBusy(null); }
   }
+  async function callMe(a: Approval) {
+    setBusy(`c${a.id}`);
+    try {
+      const r = await kavach.callNow(a.id);
+      const msg: Record<string, string> = { called: "Calling your phone now. Press 1 to approve, 2 to reject.", dry_run: "Test mode: the call was prepared but not dialled.",
+        held: "A call went out in the last 30 minutes, so this one waits (cooldown).", cap: "Today's call limit is used up.", quiet_hours: "Quiet hours: no calls right now.", off: "Phone alerts are off." };
+      (r.action === "called" ? toast.success : toast)(msg[r.action] ?? r.action);
+      kavach.calls().then(setCalls).catch(() => {});
+    } catch (e) { toast.error(e instanceof ApiError ? e.message : "Couldn't place the call"); } finally { setBusy(null); }
+  }
   async function set(name: "kill_switch" | "auto_limit_paise", value: boolean | number) {
     setBusy(name);
     try { await kavach.setting(name, value); await refresh(); toast.success(name === "kill_switch" ? (value ? "All payouts paused" : "Payouts back on") : `Auto-refund limit is now ${rupees(value as number)}`); }
@@ -121,6 +131,7 @@ export default function Seller() {
                     <button onClick={() => decide(a, "reject")} disabled={busy === `a${a.id}`} className="btn btn-ghost flex-1">Reject</button>
                     <button onClick={() => decide(a, "approve")} disabled={busy === `a${a.id}`} className="btn btn-primary flex-1">Approve</button>
                   </div>
+                  {calls?.enabled && <button onClick={() => callMe(a)} disabled={busy === `c${a.id}`} className="btn btn-ghost mt-2 w-full !h-9 text-[13.5px]">📞 Call me about this (decide with a key press)</button>}
                 </li>))}
             </ul>)}
           <p className="mt-4 text-[13.5px] text-faint">Approving doesn&apos;t skip the checks. Kavach re-verifies the records and the kill switch before paying.</p>

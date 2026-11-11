@@ -32,3 +32,19 @@ def test_uploads_are_checked_by_their_bytes_not_their_label():
     assert put_data_url("data:text/html;base64,PGgxPg==") is None
     assert put_data_url("data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff" + b"0" * (4 * 1024 * 1024 + 1)).decode()) is None
     _MEM.clear()
+
+
+async def test_incomplete_model_answers_are_never_scored(monkeypatch):
+    """A half answer ({} or missing fields) must not become 'no product visible': it counts as a failed check."""
+    import httpx
+    from kavach.agent import vision
+
+    def handler(req):
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"note": "x"}'}}]})
+    monkeypatch.setenv("GROQ_API_KEYS", "k1")
+    monkeypatch.setenv("GEMINI_API_KEYS", "")
+    monkeypatch.setenv("VISION_ORDER", "groq")
+    vision._cache.clear()
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        r = await vision.check(b"\xff\xd8\xff" + b"1" * 64, "Phone cover", "damaged", client=c)
+    assert r.score == -1                                   # unchecked -> the seller looks, never a made-up verdict

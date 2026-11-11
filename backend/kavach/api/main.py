@@ -73,6 +73,19 @@ async def _open_checkpointer(dsn: str):
     return AsyncPostgresSaver(pool), pool
 
 
+async def _stay_awake(base: str, every_s: int = 240) -> None:
+    """Render's free plan sleeps after 15 minutes without inbound traffic. A request to our own public URL goes
+    through Render's front door, so it counts. Judges then never wait for a cold start."""
+    import httpx
+    async with httpx.AsyncClient(timeout=20) as c:
+        while True:
+            await asyncio.sleep(every_s)
+            try:
+                await c.get(base.rstrip("/") + "/health")
+            except Exception:  # noqa: BLE001 - next round will try again
+                pass
+
+
 def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClient | None = None,
                checkpointer: Any = None, seller_pin: str | None = None) -> FastAPI:
     cfg = settings()
@@ -106,6 +119,9 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
             from kavach.gateway.media import fetcher
             st.agent.deps.fetch_media = fetcher(app)          # photo check on (Phase 5-lite)
             st.channels_started.append("photo-check")
+        base = os.getenv("PUBLIC_BASE_URL", "")
+        if cfg.env == "prod" and base.startswith("https://"):
+            st.bg_tasks.add(asyncio.create_task(_stay_awake(base)))   # free hosting sleeps after 15 idle minutes
         for hook in st.startup_hooks:          # tests can inject fakes after setup
             await hook(app)
         yield
@@ -271,6 +287,31 @@ def create_app(*, pool=None, store: StoreClient | None = None, trust: TrustClien
         """Public status of phone alerts (number masked). Only the seller's own phone can ever be called."""
         calls = getattr(app.state, "calls", None)
         return await calls.view() if calls else {"enabled": False}
+
+    @app.post("/api/seller/approvals/{approval_id}/call")
+    async def seller_call_now(approval_id: int, seller: bool = Depends(is_seller)):
+        """Seller console: 'Call me about this' (for a live demo or when away from the screen). PIN only."""
+        if not seller:
+            raise HTTPException(403, "seller PIN required")
+        calls = getattr(app.state, "calls", None)
+        if not calls or not calls.enabled:
+            raise HTTPException(409, "phone alerts are off")
+        ap = next((a for a in await app.state.trust.approvals("pending") if int(a["id"]) == approval_id), None)
+        if ap is None:
+            raise HTTPException(404, "no pending request with that number")
+        order = await app.state.store.order(int((ap.get("args") or {}).get("order_id", 0)))
+        res = await calls.call_now(ap, order)
+        return {"action": res["action"]}
+
+    @app.get("/api/calls/{call_sid}/audio")
+    async def call_audio(call_sid: str):
+        """Replay a call Kavach placed (it only says what was decided; no customer details beyond the order)."""
+        from fastapi.responses import Response as Raw
+        calls = getattr(app.state, "calls", None)
+        data = await calls.audio(call_sid) if calls else None
+        if data is None:
+            raise HTTPException(404, "no recording (yet): Twilio needs about a minute after the call ends")
+        return Raw(data, media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/api/seller/feed")
     async def seller_feed(seller: bool = Depends(is_seller)):

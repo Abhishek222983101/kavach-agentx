@@ -29,14 +29,27 @@ export function useEvents(scope: "me" | "all", onEvent: (e: Step | LiveMsg) => v
   }, [scope]);
 }
 
-/** true = API reachable, false = not, null = still checking. Re-checks every 20 s. */
-export function useHealth(): boolean | null {
-  const [ok, setOk] = useState<boolean | null>(null);
+export type Health = "up" | "waking" | "down" | null;
+
+/** "up", "waking" (free hosting wakes in ~30 s; we keep retrying quietly), "down" (still failing after a minute), null = checking. */
+export function useHealth(): Health {
+  const [st, setSt] = useState<Health>(null);
   useEffect(() => {
-    let alive = true;
-    const check = () => kavach.health().then(() => alive && setOk(true)).catch(() => alive && setOk(false));
-    check(); const id = setInterval(check, 20000);
-    return () => { alive = false; clearInterval(id); };
+    let alive = true, failingSince = 0, timer: ReturnType<typeof setTimeout>;
+    const check = async () => {
+      try {
+        await Promise.race([kavach.health(), new Promise((_, rej) => setTimeout(() => rej(new Error("slow")), 9000))]);
+        failingSince = 0;
+        if (alive) setSt("up");
+        timer = setTimeout(check, 20000);
+      } catch {
+        failingSince ||= Date.now();
+        if (alive) setSt(Date.now() - failingSince > 75000 ? "down" : "waking");
+        timer = setTimeout(check, 3000);           // retry fast while it wakes
+      }
+    };
+    check();
+    return () => { alive = false; clearTimeout(timer); };
   }, []);
-  return ok;
+  return st;
 }

@@ -38,8 +38,8 @@ function Inner({ children }: { children: React.ReactNode }) {
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] text-muted transition-colors hover:bg-panel hover:text-bone">
             <Send size={15} /> Chat on Telegram</a>
           <div className="flex items-center justify-between px-3 text-[13px] text-faint">
-            <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: live === true ? "var(--moss)" : live === false ? "var(--blood)" : "var(--amber)", animation: live ? "pulse-dot 2.4s infinite" : undefined }} />
-              {live === true ? "Live" : live === false ? "Offline" : "Connecting"}</span>
+            <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: live === "up" ? "var(--moss)" : live === "down" ? "var(--blood)" : "var(--amber)", animation: live === "up" ? "pulse-dot 2.4s infinite" : undefined }} />
+              {live === "up" ? "Live" : live === "down" ? "Offline" : live === "waking" ? "Waking up…" : "Connecting"}</span>
             <ThemeToggle />
           </div>
         </div>
@@ -52,7 +52,8 @@ function Inner({ children }: { children: React.ReactNode }) {
           </nav>
           <ThemeToggle />
         </div>
-        {live === false && <div role="alert" className="border-b border-blood/30 bg-bloodbg px-6 py-2.5 text-[14px] text-blood">Kavach&apos;s server isn&apos;t reachable right now. It usually wakes up within a minute; please refresh.</div>}
+        {live === "waking" && <div role="status" className="border-b border-line bg-panel2 px-6 py-2.5 text-[14px] text-muted">Waking up the server (free hosting), usually about 30 seconds. This page continues by itself.</div>}
+        {live === "down" && <div role="alert" className="border-b border-blood/30 bg-bloodbg px-6 py-2.5 text-[14px] text-blood">Kavach&apos;s server isn&apos;t answering right now. Please try again in a minute.</div>}
         <div className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">{children}</div>
       </main>
     </div>

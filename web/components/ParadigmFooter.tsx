@@ -23,7 +23,7 @@ export default function ParadigmFooter() {
         { title: "Talk to it", links: [{ label: "Telegram @kavach_agentx_bot", href: "https://t.me/kavach_agentx_bot" }, { label: "WhatsApp: join ask-contain" }] },
         { title: "The idea", links: [{ label: "It can refund" }, { label: "It can't be fooled" }, { label: "Checked from records" }, { label: "Seller stays in charge" }] },
       ]}
-      status={<span className="inline-flex items-center gap-2"><LogoMark size={16} /><span className="inline-block h-2 w-2 rounded-full" style={{ background: live === true ? "var(--moss)" : live === false ? "var(--blood)" : "var(--amber)" }} />{live === true ? "Kavach is live" : live === false ? "Kavach is offline" : "Connecting…"}</span>}
+      status={<span className="inline-flex items-center gap-2"><LogoMark size={16} /><span className="inline-block h-2 w-2 rounded-full" style={{ background: live === "up" ? "var(--moss)" : live === "down" ? "var(--blood)" : "var(--amber)" }} />{live === "up" ? "Kavach is live" : live === "down" ? "Kavach is offline" : "Waking up…"}</span>}
     />
   );
 }

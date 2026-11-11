@@ -87,7 +87,7 @@ def create_app(*, service: TrustService | None = None, api_key: str | None = Non
     @app.get("/approvals", dependencies=[Depends(auth)])
     async def approvals(status: Literal["pending", "approved", "rejected", "void"] = "pending"):
         rows = await svc().pool.fetch(
-            """SELECT a.id, a.status, a.summary, a.created_at, p.tool, p.args, p.caller, v.reasons, v.results
+            """SELECT a.id, a.status, a.summary, a.created_at, p.tool, p.args, p.caller, p.trace_id, v.reasons, v.results
                FROM approvals a JOIN proposals p ON p.id = a.proposal_id JOIN verdicts v ON v.proposal_id = a.proposal_id
                WHERE a.status = $1 ORDER BY a.created_at DESC LIMIT 50""", status)
         return [dict(r) for r in rows]

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import hmac
 import logging
 import os
@@ -126,11 +127,11 @@ class SellerCalls:
         self.last = {"kind": kind, "action": result["action"], "at": int(time.time())}
         if trace_id:
             await self.bus.emit(trace_id, "alert", "warn" if result["action"] in ("called", "dry_run") else "ok", None,
-                                kind=kind, result=result["action"])
+                                kind=kind, result=result["action"], call_sid=result.get("sid"))
         try:
             await self.pool.execute("SELECT audit_append($1, $2, $3::jsonb)", "seller_call",
                                     f"{kind}: {result['action']}" + (f" (approval {gather_for})" if gather_for else ""),
-                                    '{"trace_id": "%s"}' % (trace_id or ""))
+                                    json.dumps({"trace_id": trace_id or "", "call_sid": result.get("sid") or ""}))
         except Exception:  # noqa: BLE001
             log.warning("could not audit the call")
         return result
@@ -157,7 +158,8 @@ class SellerCalls:
             log.info("seller call (test mode, not dialled) [%s]: %s", kind, script)
             return {"action": "dry_run", "script": script}
         call = await self.transport("POST", f"{API}/Accounts/{self.sid}/Calls.json",
-                                    {"To": self.to, "From": self.caller_id, "Twiml": twiml, "TimeLimit": "35", "Timeout": "25"})
+                                    {"To": self.to, "From": self.caller_id, "Twiml": twiml, "TimeLimit": "35", "Timeout": "25",
+                                     "Record": "true"})                 # so anyone can replay the real call from the receipt
         await self._bump(f"calls:{self._today()}")
         await self._bump("calls:total")
         await self._set("calls:last_at", now)
@@ -224,6 +226,38 @@ class SellerCalls:
         script = (f"Hello, this is Kavach. {what} on order {order.get('id')}, {order.get('item', '')}, is waiting for you. "
                   f"{why} The records check out. Press 1 to approve, or 2 to reject. To decide later, just hang up.")
         await self.place("approval", script, card.get("trace_id"), gather_for=int(aid))
+
+    async def call_now(self, approval: dict, order: dict) -> dict:
+        """The seller asked for the call right now (seller console button). Same script, same caps."""
+        args = approval.get("args") or {}
+        what = f"A {spoken_rupees(args['amount_paise'])} refund" if args.get("amount_paise") else "A " + str(approval.get("tool", "request")).replace("_", " ")
+        script = (f"Hello, this is Kavach. {what} on order {order.get('id')}, {order.get('item', '')}, is waiting for you. "
+                  f"The records check out. Press 1 to approve, or 2 to reject. To decide later, just hang up.")
+        return await self.place("approval", script, approval.get("trace_id"), gather_for=int(approval["id"]))
+
+    _audio: dict[str, bytes] = {}
+
+    async def audio(self, call_sid: str) -> bytes | None:
+        """The recording of a call Kavach placed (only those: checked against the audit log)."""
+        if not re.fullmatch(r"CA[0-9a-f]{32}", call_sid):
+            return None
+        if call_sid in self._audio:
+            return self._audio[call_sid]
+        known = await self.pool.fetchval("SELECT 1 FROM audit_log WHERE event = 'seller_call' AND payload->>'call_sid' = $1", call_sid)
+        if not known or not self.sid:
+            return None
+        recs = await self.transport("GET", f"{API}/Accounts/{self.sid}/Calls/{call_sid}/Recordings.json", None)
+        items = recs.get("recordings") or []
+        if not items:
+            return None
+        async with httpx.AsyncClient(timeout=20, auth=(self.sid, self.token), follow_redirects=True) as c:
+            r = await c.get(f"{API}/Accounts/{self.sid}/Recordings/{items[0]['sid']}.mp3")
+        if r.status_code != 200 or len(r.content) > 3_000_000:
+            return None
+        if len(self._audio) > 30:
+            self._audio.clear()
+        self._audio[call_sid] = r.content
+        return r.content
 
     # ───────────── the key press ─────────────
     async def on_key(self, approval_id: int, token: str, digits: str) -> str:

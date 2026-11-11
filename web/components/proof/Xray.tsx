@@ -2,11 +2,11 @@
 import { Check, X, Loader2, ArrowRight } from "lucide-react";
 import { type Verdict } from "@/components/feed/VerdictChip";
 import { CLAIM, READ_TOOL, TOOL, reason } from "@/lib/words";
-import { rupees, type Claim } from "@/lib/api";
+import { API, rupees, type Claim } from "@/lib/api";
 
 export type AnyStep = { stage: string; status: string; t_ms: number | null; verdict?: string; reasons?: string[]; claims?: unknown;
   tool?: string; amount_paise?: number | null; calls?: string[]; intent?: string; guard_score?: number; guard_tags?: string[]; result?: string;
-  chosen?: string[]; added?: string[]; why?: string | null; tasks?: number };
+  chosen?: string[]; added?: string[]; why?: string | null; tasks?: number; call_sid?: string | null };
 
 const FLOW = [["read", "Read records"], ["propose", "AI proposes"], ["verify", "Verifier checks"], ["route", "Decides"], ["reply", "Replies"]] as const;
 const dot = (s?: string) => (s === "ok" ? "var(--moss)" : s === "warn" ? "var(--amber)" : s === "fail" ? "var(--blood)" : "var(--line-2)");
@@ -88,6 +88,11 @@ export default function Xray({ steps, showWhy = true }: { steps: AnyStep[]; show
       {!propose?.tool && done && <p className="text-[14.5px] text-muted">Nothing to verify: just an answer, read from {read?.calls?.length ?? 0} record{read?.calls?.length === 1 ? "" : "s"}.</p>}
       {alert && <p className="text-[13.5px]"><span className="font-medium">📞 Seller {alert.result === "called" ? "phoned" : alert.result === "dry_run" ? "call prepared (test mode)" : "alert recorded"}</span>
         <span className="text-muted">{alert.result === "held" ? " · inside the cooldown, so it waits for the next call" : alert.result === "cap" ? " · daily call limit reached, sent to Telegram and email instead" : ""}</span></p>}
+      {alert?.call_sid && (
+        <div className="rounded-lg bg-panel2 p-2.5">
+          <div className="mb-1.5 text-[12.5px] text-muted">▶ Listen to the real call (recorded by Twilio)</div>
+          <audio controls preload="none" src={`${API}/api/calls/${alert.call_sid}/audio`} className="h-9 w-full" />
+        </div>)}
       {guard && (guard.guard_tags?.length ?? 0) > 0 && <p className="text-[13.5px] text-amber">Message flagged as {guard.guard_tags!.map((t) => t.toLowerCase().replace(/_/g, " ")).join(", ")}</p>}
 
       {/* 4. each check, failures first */}

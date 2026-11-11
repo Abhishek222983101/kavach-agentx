@@ -17,3 +17,8 @@ docs/05-SESSIONS/raw/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# owner test photos (third-party/stock images: never committed or published)
+tests/*.jpg
+tests/*.jpeg
+tests/*.png

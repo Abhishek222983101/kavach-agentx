@@ -1,6 +1,6 @@
 """Photo check (Phase 5-lite): does the customer's photo actually show the item, with the claimed problem?
 
-Gemini looks at the image and answers fixed yes/no questions. Our own code turns those answers into a score with
+A vision model (Groq qwen first, Gemini as fallback) looks at the image and answers fixed yes/no questions. Our own code turns those answers into a score with
 fixed rules, so the decision is explainable and a model can't "argue" a photo into passing. The verifier then uses
 the score: clear match -> evidence OK; unclear or the check failed -> the seller looks (never auto-paid);
 clear mismatch (screenshot, document, different product, no damage) -> evidence fails.
@@ -68,6 +68,8 @@ def score_from(a: dict, reason: str | None) -> tuple[float, str]:
     return s, note or "shows the item with the problem"
 
 
+QUESTIONS = ("is_photo_of_a_product", "matches_ordered_item", "shows_claimed_problem", "is_screenshot_or_document",
+             "looks_like_stock_or_generated")
 _cache: dict[str, tuple[float, PhotoCheck]] = {}
 
 
@@ -79,27 +81,38 @@ async def check(data: bytes, item: str, reason: str | None, *, client: httpx.Asy
     mime = sniff(data)
     if mime is None or len(data) > MAX_BYTES:
         return PhotoCheck(0.05, "not a supported image", digest)
-    keys = [k.strip() for k in os.getenv("GEMINI_API_KEYS", "").split(",") if k.strip()]
-    if not keys:
+    b64 = base64.b64encode(data).decode()
+    claim = f"Ordered item: {item[:80]}\nClaimed problem: {reason or 'damaged'}"
+    tries: list[tuple[str, str]] = []
+    for prov in [x.strip() for x in os.getenv("VISION_ORDER", "groq,gemini").split(",")]:
+        env = {"groq": "GROQ_API_KEYS", "gemini": "GEMINI_API_KEYS"}.get(prov)
+        tries += [(prov, k.strip()) for k in os.getenv(env or "", "").split(",") if k.strip()]
+    if not tries:
         return PhotoCheck(-1, "photo check unavailable", digest)
-    body = {"systemInstruction": {"parts": [{"text": SYSTEM}]},
-            "contents": [{"role": "user", "parts": [
-                {"inline_data": {"mime_type": mime, "data": base64.b64encode(data).decode()}},
-                {"text": f"Ordered item: {item[:80]}\nClaimed problem: {reason or 'damaged'}"}]}],
-            "generationConfig": {"maxOutputTokens": 1500, "temperature": 0, "responseMimeType": "application/json",
-                                 "thinkingConfig": {"thinkingLevel": "low"}}}
-    model = os.getenv("VISION_MODEL", "gemini-3-flash-preview")
     own = client is None
-    client = client or httpx.AsyncClient(timeout=15)
+    client = client or httpx.AsyncClient(timeout=20)
     try:
-        for k in keys:
+        for prov, k in tries:                             # two providers, several keys: one exhausted quota never stops the check
             try:
-                r = await client.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                                      params={"key": k}, json=body)
-                r.raise_for_status()
-                parts = r.json()["candidates"][0]["content"]["parts"]
-                text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
-                answers = json.loads(re.search(r"\{.*\}", text, re.S).group(0))
+                if prov == "groq":
+                    r = await client.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {k}"}, json={
+                        "model": os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.8-27b"), "temperature": 0, "max_tokens": 600,
+                        "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": [
+                            {"type": "text", "text": claim}, {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}]}]})
+                    r.raise_for_status()
+                    text = r.json()["choices"][0]["message"]["content"]
+                else:
+                    r = await client.post(f"https://generativelanguage.googleapis.com/v1beta/models/{os.getenv('VISION_MODEL', 'gemini-3-flash-preview')}:generateContent",
+                                          params={"key": k}, json={
+                        "systemInstruction": {"parts": [{"text": SYSTEM}]},
+                        "contents": [{"role": "user", "parts": [{"inline_data": {"mime_type": mime, "data": b64}}, {"text": claim}]}],
+                        "generationConfig": {"maxOutputTokens": 1500, "temperature": 0, "responseMimeType": "application/json",
+                                             "thinkingConfig": {"thinkingLevel": "low"}}})
+                    r.raise_for_status()
+                    text = "".join(p.get("text", "") for p in r.json()["candidates"][0]["content"]["parts"] if not p.get("thought"))
+                answers = json.loads(re.search(r"\{.*\}", re.sub(r"<think>.*?</think>", "", text, flags=re.S), re.S).group(0))
+                if not all(isinstance(answers.get(q), bool) for q in QUESTIONS):
+                    raise ValueError("incomplete answer")       # never score defaults: try the next provider
                 s, note = score_from(answers, reason)
                 res = PhotoCheck(s, note, digest)
                 _cache[key] = (time.time(), res)
@@ -107,7 +120,7 @@ async def check(data: bytes, item: str, reason: str | None, *, client: httpx.Asy
                     _cache.clear()
                 return res
             except (httpx.HTTPError, KeyError, IndexError, ValueError, AttributeError) as e:
-                log.warning("photo check failed with one key: %s", type(e).__name__)
+                log.warning("photo check failed on %s: %s", prov, type(e).__name__)
         return PhotoCheck(-1, "photo check unavailable", digest)
     finally:
         if own:

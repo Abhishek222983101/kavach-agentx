@@ -145,3 +145,14 @@ async def test_script_is_capped_to_about_35_seconds(pools, phone):
     c, _ = make(pools, phone, CALL_DRY_RUN="1")
     r = await c.place("x", "word " * 300, None)
     assert len(r["script"].split()) <= 90
+
+
+async def test_call_now_records_the_call_and_audio_is_only_for_our_calls(pools, phone):
+    c, _ = make(pools, phone)
+    r = await c.call_now({"id": 9, "tool": "issue_refund", "args": {"order_id": 1, "amount_paise": 500000}, "trace_id": "tr_now"},
+                         {"id": 1, "item": "Headphones"})
+    assert r["action"] == "called"
+    sent = phone.calls[-1]
+    assert sent["Record"] == "true" and "<Gather" in sent["Twiml"] and "5,000 rupees" in sent["Twiml"]
+    assert await c.audio("not-a-sid") is None
+    assert await c.audio("CA" + "0" * 32) is None                 # well-formed, but Kavach never placed it
