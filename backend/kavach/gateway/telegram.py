@@ -76,7 +76,17 @@ async def process_update(app, upd: dict) -> None:
     if not st.caps.allow_user(f"telegram:{chat_id}"):
         await st.telegram.send(chat_id, "You've reached today's message limit for this demo. Please try again tomorrow.")
         return
-    if text in ("/start", "/help"):
+    if text.split("@")[0] == "/orders":
+        orders = await st.store.orders(conv["customer_id"], limit=10)
+        lines = [f"• {o['item']}: order {o['id']} ({o['status']})" for o in orders]
+        await st.telegram.send(chat_id, "Your demo orders:\n" + "\n".join(lines) +
+                               "\n\nTry: \"where is my earphone?\", \"phone cover ka refund chahiye\", \"speaker toota hua aaya\".")
+        return
+    if text.split("@")[0] == "/help":
+        await st.telegram.send(chat_id, "Ask me in English, Hinglish or Hindi: track an order, return something, or get a refund. "
+                                        "Every refund is checked against the shop's records first. /orders shows your demo orders.")
+        return
+    if text.split("@")[0] == "/start":
         text = "namaste"
     await st.agent.handle(conv, text or "photo", media=media)
 

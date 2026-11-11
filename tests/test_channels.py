@@ -185,3 +185,14 @@ async def test_telegram_needs_secret_and_handles_customer_and_seller_buttons(cha
     await c.post("/webhooks/telegram", json=bad, headers=h)                    # not the seller: ignored
     await asyncio.gather(*list(app.state.bg_tasks), return_exceptions=True)
     assert not any(m.get("chat_id") == "999" for m in rec.tg if m["method"] == "sendMessage")
+
+
+async def test_telegram_orders_and_help_commands(chan, fake):
+    c, app, rec = chan
+    h = {"X-Telegram-Bot-Api-Secret-Token": "tg-secret-123"}
+    for i, cmd in enumerate(("/orders", "/help"), start=10):
+        await c.post("/webhooks/telegram", json={"update_id": i, "message": {"chat": {"id": 556}, "text": cmd}}, headers=h)
+        await asyncio.gather(*list(app.state.bg_tasks), return_exceptions=True)
+    sent = [m["text"] for m in rec.tg if m.get("chat_id") == "556"]
+    assert "Your demo orders" in sent[0] and "Bluetooth speaker" in sent[0]
+    assert "/orders" in sent[1]
