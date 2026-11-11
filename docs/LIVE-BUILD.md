@@ -102,3 +102,26 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 ## Phase 5-lite: Photo check
 *Goal: a "damaged item" photo must actually show the item and the damage. Today any image counts, even a payment screenshot.*
 
+
+**What was built (done 05:05):**
+- **The AI looks at the photo, but our rules decide.** Gemini answers fixed yes/no questions: is it a photo of a product? Is it the ordered item? Does it show the damage? Is it a screenshot or a document? Kavach's own code turns the answers into a score. The model can't talk a photo into passing, and text written inside an image is ignored.
+- **What the verifier does with the score.**
+  - Clear match → counts as evidence.
+  - Clear mismatch (a payment screenshot, a different product, no damage visible) → blocked, with a plain reason: "the photo doesn't show a damaged Phone cover".
+  - Unclear, or the check couldn't run → never paid automatically; the seller takes a look.
+- **Privacy.** Photos are never stored, only a fingerprint and the score. Website uploads stay in memory for 10 minutes. The short note about the photo never repeats names or numbers read from the image.
+- **On the website.** The camera button opens a picker: upload your own photo (shrunk in the browser first, so it's fast) or use the sample payment screenshot. New one-tap try: **"Send a payment screenshot as the photo"** → blocked. This is exactly the trick a friend tried earlier.
+
+**Live checks on production:**
+- the sample payment screenshot scored 0.05 → blocked;
+- all 13 one-tap tries give the result they promise (the try-checker script ran against the live server, with test sessions, so no WhatsApp messages or calls).
+
+**Honest gap:** we have no real photo of a damaged item yet (image generation isn't available on the free Gemini key), so the honest "broken item" demo try uses a demo photo, and that goes to the seller. With a real photo (uploaded on the site, or sent on WhatsApp or Telegram) the refund is instant.
+
+**Checks:** 98 automated tests pass (6 new); security scanners clean.
+
+---
+
+## Phase 8: Eval
+*Goal: real numbers, measured the same way for a "just prompt it" AI and for Kavach.*
+
