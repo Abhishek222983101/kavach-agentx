@@ -211,3 +211,13 @@ async def test_whatsapp_budget_is_persistent_and_hard(chan, fake):
     assert not await budget.allow()
     fresh = WhatsAppBudget(app.state.pool, limit=budget.limit)  # a "restart" sees the same count
     assert await fresh.used() == await budget.used()
+
+
+async def test_whatsapp_replies_show_messages_left(chan, fake):
+    from kavach.gateway.budget import WhatsAppBudget
+    c, app, rec = chan
+    app.state.whatsapp.budget = WhatsAppBudget(app.state.pool, limit=(await WhatsAppBudget(app.state.pool).used()) + 50)
+    cust = "+919866666666"
+    await wa(c, app, cust, "namaste", "SM" + "p" * 32)
+    body = to(rec, cust)[-1]
+    assert "WhatsApp msgs left" in body and body.rstrip().endswith("_") and "Kavach" in body

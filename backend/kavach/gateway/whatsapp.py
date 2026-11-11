@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -47,7 +48,10 @@ class TwilioWhatsApp:
             if not await self.budget.allow():
                 log.warning("WhatsApp budget exhausted; message not sent")
                 return
-            await self.budget.charge()
+            used = await self.budget.charge()
+            left = max(0, self.budget.limit - used)
+            tg = os.getenv("TELEGRAM_BOT_USERNAME", "kavach_agentx_bot")
+            text = f"{text}\n\n_Demo: {left} WhatsApp msgs left · unlimited on Telegram @{tg}_"   # minimal, italic
         to = to if to.startswith("whatsapp:") else f"whatsapp:{to}"
         async with self._lock:                                  # sandbox: one message every 3 seconds
             wait = self.min_gap_s - (time.monotonic() - self._last)
