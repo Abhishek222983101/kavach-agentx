@@ -234,3 +234,35 @@ One separate service, the **trust service**, does four jobs. It is the only part
   - the full system started with WhatsApp polling and email switched on, with no errors.
 - **Not tested live yet, and needs you:** a real WhatsApp conversation (your phone must re-join the sandbox, since sessions expire after 3 days), and Telegram (needs a Kavach bot token).
 - **Security scans:** bandit, semgrep (Python, secrets, OWASP Top 10, FastAPI) and pip-audit all clean. A manual review added a memory bound to the WhatsApp poller.
+
+## Phase 6: the website (12 Nov, 02:30–03:30 IST)
+
+**What it is:** the Kavach website. Every page shows proof read from the live system, so a judge (or a seller) never has to take our word for anything. [OBSERVED]
+
+- **`/` landing.** Tessera's layout with Kavach content. Headline: "*It can refund.* It can't be fooled." Includes an isometric machine (a real claim gets refunded, the ₹5,000 "I'm the owner" scam is stopped and the seller is told), live numbers, "how it works", "try it in three clicks", and a dark/light switch (dark by default).
+- **`/console`, the live demo.**
+  - You become a customer of your own demo shop. Six one-tap tries: real claim with photo, pretend to be the owner, skip the photo, too late, hidden instruction, and "where is my order?".
+  - Every reply has a verdict chip and a link to its receipt.
+  - The "What Kavach checked" panel shows each check live, with ✓/✗, the reason, and where the fact came from (records, policy, or the customer's word).
+  - You also get your own approvals, QR codes for WhatsApp and Telegram, and a live feed of decisions from every chat.
+- **`/proof`: "Don't trust us. Check."**
+  1. Postgres itself answers what each service's database user may do. The AI's user can't insert refunds or edit the log.
+  2. The hash-chained log, plus a **tamper test**: it edits one row of a throwaway copy, and the same check finds that exact row.
+  3. The signed one-time slip, with links to a real paid refund and a real blocked one.
+- **`/proof/<id>`, the receipt.** For one message: every check, the timeline with timings, the records read, and the signed slip (action fingerprint, one-time number). It never shows message text or phone numbers.
+- **`/seller`.** PIN-gated approvals, a kill switch, and the auto-refund limit. The shop rules are readable by anyone; changing them needs the PIN.
+
+**Bugs found by testing the UI, now fixed (with regression tests):**
+- The live event stream returned an error on every connection, because subscribers couldn't be stored in a set. Nothing live reached the browser until this was fixed.
+- A photo sent *together with* the first message (picture plus caption, the normal WhatsApp habit) wasn't counted as evidence, so honest customers were asked for a photo again.
+
+**Honest result on "can't you just prompt the AI?"** We built a prompt-only baseline (B0, `/api/arena`) with strict hard rules and ran our three attacks against it. It refused the obvious owner scam 3 out of 3 times. So we **don't** claim a prompt always fails. Our claim is that Kavach's guarantees don't depend on the AI behaving. Phase 8 will measure B0 against Kavach on many attacks. [OBSERVED]
+
+**Checks:**
+- 73 automated tests pass.
+- bandit, semgrep and pip-audit are clean.
+- The web dependency audit flags 2 minor advisories in build-time packages (minimatch, deepmerge), not reachable at runtime.
+- Probes: bad receipt ids are refused, the tamper test is rate-limited, and the kill switch, seller feed and other customers' approvals all need the PIN (403).
+- Screenshots taken at 1440 px (dark) and 390 px (light).
+
+**Not done yet:** deploy (Phase 7). The photo vision check is in Phase 5. The live hosted URL is still to come.
