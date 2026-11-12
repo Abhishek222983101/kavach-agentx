@@ -238,18 +238,6 @@ cd web && pnpm dev  # website
 
 <br>
 
-## ⚠️ Honest limits
-
-- Shop data is mock (allowed and required by the rules): orders, couriers and payments are fake but realistic.
-- WhatsApp uses the Twilio sandbox: each phone must send `join ask-contain` first, and sessions expire after 3 days.
-- Free hosting: the server can take about 30 s to wake. A keep-awake job pings it until 16 Nov.
-- Phone calls are capped to stay within the demo budget.
-- A demo photo can't be verified, so it goes to the seller. A real, clear photo of damage under ₹500 is refunded instantly.
-- The guard still has 10% false alarms on hand-written messages (target ≤5%) and 60% recall on Hindi; voice notes are not transcribed yet.
-- The plain-AI comparison is one strict prompt on one model, not all prompts.
-
-<br>
-
 ## 🔗 All links
 
 | | |
