@@ -76,6 +76,18 @@ export default function Console() {
     if (s.stage === "approve" || s.stage === "execute") kavach.approvals().then(setApprovals).catch(() => {});
   });
 
+  /** The live stream can drop or arrive late on free hosting. Once the reply is in, read the saved steps
+   *  for that decision and use them if the stream gave us fewer, so the panel never sits on "Checking…". */
+  function fillFromRecord(trace: string, tries = 0) {
+    setTimeout(() => {
+      kavach.trace(trace).then((t) => {
+        const saved = t.steps as unknown as AnyStep[];
+        setSteps((p) => ((p[trace]?.length ?? 0) >= saved.length ? p : { ...p, [trace]: saved }));
+        if (!saved.some((s) => s.stage === "reply") && tries < 3) fillFromRecord(trace, tries + 1);
+      }).catch(() => { if (tries < 3) fillFromRecord(trace, tries + 1); });
+    }, tries === 0 ? 400 : 1200);
+  }
+
   async function send(t: string, a: Attach | null, expect?: Expect) {
     const msg = t.trim();
     if ((!msg && !a) || busy) return;
@@ -84,7 +96,7 @@ export default function Console() {
     try {
       const out = await kavach.chat(msg, !!a, a?.url);
       const trace = out.trace_id ?? pendingTrace.current ?? undefined;
-      if (trace) setFocus(trace);
+      if (trace) { setFocus(trace); fillFromRecord(trace); }
       const v = (out.outcome?.verdict as Verdict | undefined) ?? (trace ? "NONE" : undefined);
       setLines((l) => [...l, { dir: "out", text: out.reply, trace, verdict: v }]);
       kavach.approvals().then(setApprovals).catch(() => {});
