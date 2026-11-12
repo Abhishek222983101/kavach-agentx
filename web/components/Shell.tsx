@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Home, Play, ShieldCheck, Send } from "lucide-react";
+import { BarChart3, Home, Play, ShieldCheck, Send, Network } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/console", label: "Live demo", icon: Play },
   { href: "/seller", label: "Seller console", icon: ShieldCheck },
   { href: "/proof", label: "Proof", icon: BarChart3 },
+  { href: "/architecture", label: "How it works", icon: Network },
 ];
 
 function Inner({ children }: { children: React.ReactNode }) {
