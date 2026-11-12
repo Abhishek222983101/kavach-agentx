@@ -27,6 +27,8 @@ export default function Seller() {
   }, []);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { refresh(); }, [refresh]);
+  // a phone-call decision happens off this page: re-read the list every 5 s so it updates on its own
+  useEffect(() => { const t = setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 5000); return () => clearInterval(t); }, [refresh]);
   useEvents("all", (e) => { if (e.type === "step" && (e.stage === "route" || e.stage === "approve" || e.stage === "execute")) refresh(); });
 
   async function login(e: React.FormEvent) {
