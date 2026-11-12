@@ -25,6 +25,10 @@ export function newSession(): string {
   return session();
 }
 
+/** Time of the last successful answer from the API (any call or live event). The health badge trusts this first. */
+export const lastOk = { t: 0 };
+export const markOk = () => { lastOk.t = Date.now(); };
+
 const PIN_KEY = "kavach.pin";
 export const sellerPin = { get: () => { try { return sessionStorage.getItem(PIN_KEY) ?? ""; } catch { return ""; } },
   set: (p: string) => { try { sessionStorage.setItem(PIN_KEY, p); } catch {} } };
@@ -44,6 +48,7 @@ async function call<T>(path: string, init: { method?: string; json?: unknown; pi
     try { const j = await res.json(); if (typeof j.detail === "string") msg = j.detail; } catch {}
     throw new ApiError(res.status, msg);
   }
+  markOk();
   return res.json() as Promise<T>;
 }
 
