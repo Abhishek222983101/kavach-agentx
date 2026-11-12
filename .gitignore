@@ -22,3 +22,9 @@ docs/05-SESSIONS/raw/
 tests/*.jpg
 tests/*.jpeg
 tests/*.png
+
+# ML: raw downloads and checkpoints stay local (fetched by ml/fetch_data.py)
+ml/data/raw/
+ml/models/teacher*/
+ml/wandb/
+wandb/

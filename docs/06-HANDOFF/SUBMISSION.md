@@ -1,33 +1,50 @@
 ---
 doc: submission
 status: draft
-last_updated: 2026-11-11
+last_updated: 2026-11-12
 ---
 
-# Submission form (Hack4Hack portal), draft answers
+# Submission form (Hack4Hack portal), answers
 
-The portal asks for: project name, theme, one-line pitch (≤ 140 chars), description, tech stack (comma separated), repository, live demo, demo video, pitch deck `[OBSERVED: portal screenshot 11 Nov 22:07]`. **There is exactly one video field**, so the launch film cannot be a separate submission item (see "Videos" below). Any teammate can edit until the deadline (12 Nov 10:00 IST).
+The portal asks for: project name, theme, one-line pitch (≤ 140 chars), description, tech stack (comma separated), repository, live demo, demo video, pitch deck `[OBSERVED: portal screenshot 11 Nov 22:07]`. **There is exactly one video field**, so any launch film cannot be a separate submission item (see "Videos"). Any teammate can edit until the deadline (12 Nov 10:00 IST).
 
-| Field | Draft |
+## Fields
+
+| Field | Answer |
 |---|---|
 | Project name | Kavach |
-| Theme | AI Agents · E-commerce support (PS-04) |
-| One-line pitch | A WhatsApp support agent for small Indian sellers that checks every refund and return against the real records before it acts. *(124 chars)* |
-| Description | Small sellers drown in "where is my order", return and refund messages, and an AI agent that can issue refunds can also be talked into the wrong one. Kavach answers customers on WhatsApp and Telegram in Hindi, Hinglish or English, looks up orders and courier status through real API calls on a mock store, and starts returns and refunds. Before any write, a separate verifier re-reads the records and checks every claim the action depends on (ownership, delivery, return window, amount, duplicates, and the exact policy clause, quoted). Small clean actions run; larger ones go to the seller's phone for one tap; anything that doesn't match is blocked. Only a separate executor holding a signed, single-use verdict can write, and every step lands in a hash-chained log. A Hinglish manipulation detector we trained (and distilled to run on a free server) adds caution but can never approve anything. Measured against a plain LLM agent on the same attacks: *[numbers from eval/reports, filled at the end]*. |
-| Tech stack | Python, FastAPI, LangGraph, PostgreSQL, Neon, Next.js, React, Tailwind CSS, react-isokit, Twilio WhatsApp, Telegram Bot API, Gemini, Groq, PyTorch, Hugging Face Transformers, ONNX Runtime, scikit-learn, Weights & Biases, Render, Vercel |
-| Repository | https://github.com/Abhishek222983101/kavach-agentx *(make public before submitting, Q-12)* |
-| Live demo | https://*(vercel project)*.vercel.app |
-| Demo video | YouTube (unlisted) or Google Drive link, ≤ 3:00, viewable by anyone |
-| Pitch deck | Google Slides / PDF link, 6 slides, viewable by anyone |
+| Theme / track | AI Agents · E-commerce support (PS-04: autonomous support agent for online sellers) |
+| One-line pitch (126 chars) | A support agent for Indian sellers that can ask for refunds but can't pay them. A separate checker re-reads the records first. |
+| Tech stack | Python, FastAPI, LangGraph, PostgreSQL, Neon, Groq (gpt-oss-120b), Google Gemini, Twilio WhatsApp, Twilio Voice, Telegram Bot API, Gmail SMTP, Next.js 16, React, Tailwind CSS, Render, Vercel, GitHub Actions `<!-- ML_STACK: add ML libraries here only if the ML guard ships -->` |
+| Repository | https://github.com/Abhishek222983101/kavach-agentx *(must be public before submitting, Q-12)* |
+| Live demo | https://kavach-agentx.vercel.app |
+| Demo video | TBD (YouTube unlisted or Google Drive, ≤ 3:00, viewable by anyone) |
+| Pitch deck | TBD (Google Slides or PDF, 6 slides, viewable by anyone; source: `docs/06-HANDOFF/DECK.md`) |
+
+Pitch character count: **126** (limit 140).
+
+## Description (about 150 words)
+
+Small online sellers lose hours to "where is my order?", return and refund messages. An AI agent can answer them, but an agent that can issue refunds can also be talked into the wrong one. Kavach answers customers on WhatsApp, Telegram and the web in Hindi, Hinglish or English. It looks up orders and courier status and asks for refunds, but it cannot pay one. A separate verifier re-reads the real records and checks every fact the action depends on, including the exact policy line and the photo. It then allows, asks the seller (by WhatsApp, Telegram, email or a phone call: "press 1 to approve"), or blocks. Only an executor holding a signed one-time slip can write, and every step goes into a hash-chained log. In our test of 19 attacks and 11 honest requests, Kavach paid ₹0 and blocked no honest customer. A plain strict-prompt AI paid on 6 of 54 attack tries. `<!-- ML_RESULTS -->`
+
+## Key facts for the form notes
+
+- Live product: web demo, Telegram bot, WhatsApp sandbox (send `join ask-contain` to +1 415 523 8886).
+- Judges can test in 5 minutes with no setup: `docs/MANUAL-TESTING.md`, Part 1.
+- The seller console PIN goes in the portal's notes field, not in any file in the repo.
+- Honest limits: mock shop data, WhatsApp is the Twilio sandbox, free hosting.
 
 ## Videos
-- **Demo video (the one that counts, ≤ 3:00):** screen recording + voice-over, following the storyboard in ARCH §20 Phase 10.3. It may open with a **10–15 s launch sting** made with Higgsfield, which counts toward the 3 minutes.
-- **Launch film (optional, 30–45 s, Higgsfield):** linked from the README's first line, the landing page hero ("Watch the launch film") and deck slide 1. It never replaces the product demo.
-- Upload both as unlisted YouTube videos; check they play in a private window.
 
-## Final checklist (09:30–09:55)
-- [ ] Repo public, README top shows live link, video, WhatsApp join QR, Telegram link, results table.
-- [ ] Live demo loads on a phone on mobile data; WhatsApp and Telegram reply.
+- **Demo video (the one that counts, ≤ 3:00):** screen recording plus voice-over, following `docs/06-HANDOFF/VIDEO-SCRIPT.md`.
+- Upload as unlisted on YouTube (or Google Drive). Check it plays in a private window.
+- An optional short launch film, if one exists, is linked from the README only. It never replaces the product demo.
+
+## Final checklist (09:30-09:55)
+
+- [ ] Repo public. README top shows live link, Telegram link, WhatsApp join text and the results table. Add the video link when ready.
+- [ ] `<!-- ML_RESULTS -->` placeholders filled from the final ML report, or removed, in README, DECK and this file.
+- [ ] Live demo loads on a phone on mobile data. WhatsApp and Telegram reply.
 - [ ] Video and deck links open in a private window.
 - [ ] Tag `v1.0-agentx` pushed.
-- [ ] Submitted; screenshot saved to `docs/06-HANDOFF/`.
+- [ ] Submitted. Screenshot saved to `docs/06-HANDOFF/`.
