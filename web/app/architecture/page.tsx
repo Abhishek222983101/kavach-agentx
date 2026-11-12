@@ -105,7 +105,7 @@ const NODES: Node[] = [
   { id: "audit", label: "Audit log", sub: "hash chain", x: 802, y: 240, kind: "data",
     what: "Every decision is written to a log where each row includes the fingerprint of the row before. Changing any row breaks every row after it.",
     why: "Nobody can quietly edit history. The Proof page lets you try.",
-    code: ["backend/kavach/audit.py", "backend/kavach/db/schema.sql"],
+    code: ["backend/kavach/trust/service.py", "backend/kavach/db/schema.sql"],
     proofLink: { href: "/proof", text: "Press Run on Proof 2 (tamper test)" },
     probe: async () => { const [a, v] = await Promise.all([kavach.proofAudit(5), kavach.audit()]);
       return [{ t: "GET /api/audit/verify", tone: "dim" }, { t: v.intact ? `chain intact · ${a.total} rows` : `BROKEN at row ${v.first_broken_row}`, tone: v.intact ? "ok" : "bad" },

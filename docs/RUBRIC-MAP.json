@@ -1,0 +1,231 @@
+[
+ {
+  "criterion": "Problem fit and real-world impact",
+  "weight": 0.25,
+  "claims": [
+   {
+    "claim": "Handles where-is-my-order, return and refund messages for small Indian sellers on WhatsApp, Telegram and web in Hindi, Hinglish or English",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/console",
+     "https://t.me/kavach_agentx_bot"
+    ],
+    "evidence_files": [
+     "backend/kavach/agent/graph.py",
+     "backend/kavach/agent/replies.py",
+     "backend/kavach/gateway/whatsapp.py",
+     "backend/kavach/gateway/telegram.py",
+     "docs/02-PRODUCT/PRD.md"
+    ],
+    "verify_steps": [
+     "Open /console, pick Phone cover, type 'phone cover toota hua aaya hai, refund chahiye', read the Hinglish reply grounded in the order record"
+    ]
+   },
+   {
+    "claim": "Stops refund scams: 0 of 19 attacks did harm and Rs 0 paid, 0 of 11 honest requests blocked; a strict-prompt plain AI paid on 6 of 54 tries",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/proof"
+    ],
+    "evidence_files": [
+     "eval/reports/report.md",
+     "web/public/eval.json",
+     "eval/scenarios.py",
+     "eval/run.py"
+    ],
+    "verify_steps": [
+     "Open /proof, Proof 4, click 'Show all 30 scenarios'"
+    ]
+   }
+  ]
+ },
+ {
+  "criterion": "Agent design (planning, tool use, memory)",
+  "weight": 0.25,
+  "claims": [
+   {
+    "claim": "LangGraph conversation graph ingest -> guard -> understand -> plan_read -> act -> respond; AI-chosen plan plus a safety floor; two requests in one message",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/architecture"
+    ],
+    "evidence_files": [
+     "backend/kavach/agent/graph.py",
+     "backend/kavach/agent/understand.py"
+    ],
+    "verify_steps": [
+     "Send a message on /console; 'What Kavach checked' shows AI-chosen lookups (solid) and safety-added ones (dashed); open Receipt for every step"
+    ]
+   },
+   {
+    "claim": "Tool use: read tools on the store; write tools only proposed to a separate verifier and executed with a signed one-time slip",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/proof"
+    ],
+    "evidence_files": [
+     "backend/kavach/trust/service.py",
+     "backend/kavach/trust/tokens.py",
+     "backend/kavach/store/app.py",
+     "backend/kavach/agent/trust_client.py"
+    ],
+    "verify_steps": [
+     "Open any Receipt of a paid refund: it shows the signed slip (nonce, args hash)"
+    ]
+   },
+   {
+    "claim": "Memory: per-chat history and a Postgres checkpointer; approval threads pause with interrupt() until the seller decides",
+    "evidence_urls": [],
+    "evidence_files": [
+     "backend/kavach/agent/graph.py"
+    ],
+    "verify_steps": [
+     "Big refund on /console (headphones, 'It arrived broken (with photo)') -> 'Sent to the seller'; approve it later and the customer is told"
+    ]
+   }
+  ]
+ },
+ {
+  "criterion": "Working demo and reliability",
+  "weight": 0.2,
+  "claims": [
+   {
+    "claim": "Live product on Vercel + Render + Neon with web, Telegram and WhatsApp channels",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app",
+     "https://kavach-agentx.vercel.app/console",
+     "https://t.me/kavach_agentx_bot"
+    ],
+    "evidence_files": [
+     "Dockerfile",
+     "infra/start.sh",
+     "infra/Procfile.prod",
+     ".github/workflows/keepalive.yml"
+    ],
+    "verify_steps": [
+     "Follow README section 2"
+    ]
+   },
+   {
+    "claim": "Fails closed, kill switch, refund caps, capped seller phone calls",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/seller"
+    ],
+    "evidence_files": [
+     "backend/kavach/trust/service.py",
+     "backend/kavach/gateway/calls.py"
+    ],
+    "verify_steps": [
+     "/seller shows payouts state, auto-refund limit, hard cap and call caps"
+    ]
+   },
+   {
+    "claim": "105 automated tests pass",
+    "evidence_urls": [],
+    "evidence_files": [
+     "tests/"
+    ],
+    "verify_steps": [
+     "Run: .venv/bin/python -m pytest -q"
+    ]
+   }
+  ]
+ },
+ {
+  "criterion": "Innovation",
+  "weight": 0.15,
+  "claims": [
+   {
+    "claim": "The AI's database user cannot write money tables; enforced by Postgres",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/proof",
+     "https://kavach-agentx.vercel.app/architecture"
+    ],
+    "evidence_files": [
+     "backend/kavach/db/roles.sql",
+     "tests/test_db_security.py"
+    ],
+    "verify_steps": [
+     "/proof -> Proof 1 -> Run: 'permission denied for table refunds'"
+    ]
+   },
+   {
+    "claim": "Hash-chained, append-only audit log; any edit is detected at the exact row",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/proof"
+    ],
+    "evidence_files": [
+     "backend/kavach/db/schema.sql",
+     "backend/kavach/trust/service.py"
+    ],
+    "verify_steps": [
+     "/proof -> Proof 2 -> Run"
+    ]
+   },
+   {
+    "claim": "Vision photo check: a payment screenshot sent as a damage photo is blocked",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/console"
+    ],
+    "evidence_files": [
+     "backend/kavach/agent/vision.py",
+     "backend/kavach/trust/claims.py"
+    ],
+    "verify_steps": [
+     "/console -> Phone cover -> 'Send a payment screenshot as the photo' -> Blocked"
+    ]
+   },
+   {
+    "claim": "Trained guard for Hinglish manipulation (MuRIL teacher, distilled TF-IDF student, threshold 0.563): 73% caught / 10% false alarms on hand-written messages vs 7% for Meta Prompt Guard 2 and 13% for rules; can only escalate",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/proof",
+     "https://wandb.ai/abhisheksoni1445-mistralfluence/kavach-guard"
+    ],
+    "evidence_files": [
+     "ml/train.py",
+     "ml/calibrate.py",
+     "ml/parity.py",
+     "ml/build_data.py",
+     "ml/README.md",
+     "ml/reports/guard_eval.json",
+     "web/public/guard.json",
+     "backend/kavach/agent/guard_model.py",
+     "backend/kavach/agent/guard_student.json"
+    ],
+    "verify_steps": [
+     "/proof -> Proof 5; open the W&B project"
+    ]
+   },
+   {
+    "claim": "Seller approves by pressing 1 on a phone call; Twilio-signed key press, re-verified before payment",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/seller"
+    ],
+    "evidence_files": [
+     "backend/kavach/gateway/calls.py"
+    ],
+    "verify_steps": [
+     "/seller with PIN -> 'Call me about this'"
+    ]
+   }
+  ]
+ },
+ {
+  "criterion": "Presentation",
+  "weight": 0.15,
+  "claims": [
+   {
+    "claim": "README with rubric map and 5-minute end-to-end test, 6-slide deck, clickable live architecture page, receipts for every decision",
+    "evidence_urls": [
+     "https://kavach-agentx.vercel.app/deck.pdf",
+     "https://kavach-agentx.vercel.app/architecture",
+     "https://kavach-agentx.vercel.app/proof"
+    ],
+    "evidence_files": [
+     "README.md",
+     "web/app/architecture/page.tsx",
+     "docs/MANUAL-TESTING.md"
+    ],
+    "verify_steps": [
+     "Open /architecture and click any box to run a live check"
+    ]
+   }
+  ]
+ }
+]
