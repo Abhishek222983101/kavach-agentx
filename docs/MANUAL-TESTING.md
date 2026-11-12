@@ -30,6 +30,7 @@
 - **Proof 2 → Run:** edits one random row of a copy of the decision log; the chain check finds exactly that row.
 - **Proof 3:** open a real paid refund and a real blocked one, with the signed one-time slip.
 - **Proof 4:** the same attacks against a plain "strict prompt" AI and against Kavach, with measured numbers.
+- **Proof 5:** the guard model we trained (MuRIL → distilled student) against simple rules and Meta's Prompt Guard 2, with a link to every training run in Weights & Biases.
 
 ### On your phone
 - **Telegram:** open https://t.me/kavach_agentx_bot → Start → `/orders`, then chat.

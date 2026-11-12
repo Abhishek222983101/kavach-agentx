@@ -158,3 +158,35 @@ Kavach is a customer-support agent for small online sellers in India. Customers 
 - **Owner to-dos:**
   1. One real photo of a damaged item (any phone cover or object with a crack), so the honest "instant refund" demo uses a checked photo.
   2. Re-test WhatsApp and Telegram from your phone against the live server.
+
+---
+
+## Phase 5: The trained guard (ML)
+*Goal: a model that recognises manipulation in Indian shop chats (English, Hinglish, Hindi), better than simple rules and better than off-the-shelf detectors, while never approving anything on its own.*
+
+**How it was built (06:00–06:35):**
+1. **Data.**
+   - Realistic shop messages in three languages, built from "families" of phrasing (for example "the owner said so", "ignore your rules", "where is my order?", angry-but-honest complaints).
+   - A quarter of every family's phrasings were kept aside for testing, so the test checks *new* wording, not memorised sentences.
+   - Plus a public prompt-injection dataset (deepset, Apache-2.0).
+   - **60 messages were written by hand before training** and never shown to the model while it learned. They are the honest test.
+2. **Teacher model.** Google's MuRIL (a model that understands Indian languages, including Hindi written in English letters), fine-tuned on the laptop's RTX 5050. It was trained twice with different random seeds, and the better one was kept.
+3. **Student model (what runs in production).** A small, fast model that learned to copy the teacher. It runs in about 1 ms, needs no GPU, and is stored as a plain data file, never as executable code. A test proves the production version scores exactly like the training version (to 0.000001).
+4. **The alarm threshold** was chosen on a *separate* set of 50 hand-written messages, so that at most 5% of honest messages raise an alarm. The first threshold flagged too many honest customers, so it was replaced. That's documented in `ml/README.md`.
+5. **Everything is recorded in Weights & Biases:** https://wandb.ai/abhisheksoni1445-mistralfluence/kavach-guard (training curves, every test, the mistakes the model made, and the model file).
+
+**Results on messages the model never saw (hand-written set):**
+
+| Detector | Catches manipulation | False alarms on honest messages |
+|---|---|---|
+| Simple rules (what we had) | 13% | 3% |
+| Meta's Llama Prompt Guard 2 (ready-made) | 7% | 0% |
+| **Our trained guard, as it runs in production** | **73%** | **10%** |
+
+It also catches 100% of the eval's attack messages with no false alarms, and 99% of Hinglish manipulation (Meta's detector: 4%).
+
+**Two honest notes.**
+- A second version (v2, with more training phrasings) scored better on some tests. But we had decided in advance to pick the version that did best on the *calibration* set, not the test set, and by that rule v1 ships. v2 is reported, not hidden.
+- A false alarm never blocks anyone. It only sends the request to the seller, and the verifier still checks every fact.
+
+**With the guard live, the full eval on the live server:** still 0 of 19 attacks did any harm and 0 of 11 honest customers were blocked. Role-play and "emergency" pressure attempts now go to the seller. Reply time is unchanged at 1.6 s.

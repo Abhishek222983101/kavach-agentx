@@ -27,7 +27,7 @@ Closing line: **"You can confuse the chat. You can't make it pay out."**
 
 Voice-over is about 290 words (roughly 2:15 spoken, leaving room for pauses and the call audio). Read at a calm pace and trim if it runs over 2:55.
 
-If the ML guard results are ready, add one sentence at 2:25-2:45: `<!-- ML_RESULTS -->` (numbers from the final ML report only).
+At 2:25–2:45 add one sentence: "Our trained guard catches 73% of hand-written manipulation attempts; simple rules caught 13%."
 
 ## Shot list
 

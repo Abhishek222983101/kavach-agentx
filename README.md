@@ -81,7 +81,18 @@ Re-run: `uv run python eval/run.py`. Every scenario is on `/proof` (Proof 4).
 
 A trained guard that scores messages for manipulation. It can only make Kavach more careful. It can never approve anything.
 
-<!-- ML_RESULTS -->
+**Trained manipulation guard (Phase 5).** A message is scored for manipulation (instructions to the AI, false authority, made-up policies, coercion, data fishing) before anything else happens. The score can only send a request to the seller; it never approves anything.
+
+- Teacher: `google/muril-base-cased` fine-tuned on an RTX 5050 (2 seeds). Student: TF-IDF + logistic regression distilled from it, served in pure Python from JSON (no pickle), ~1 ms per message, matches scikit-learn to 1e-6.
+- Threshold chosen on a separate hand-written calibration set (≤ 5% false alarms), then measured on sets it never saw.
+
+| Detector (same tests) | Hand-written messages: caught / false alarms | Kavach eval messages: caught | Hinglish caught | Hindi caught |
+|---|---|---|---|---|
+| Rules (before) | 13% / 3% | 38% | 25% | 0% |
+| Meta Llama Prompt Guard 2 | 7% / 0% | 25% | 4% | 0% |
+| **Kavach guard, as served (rules + model)** | **73% / 10%** | **100% (0 false alarms)** | **99%** | 60% |
+
+With the guard live, the end-to-end eval stays at 0 of 19 attacks doing harm and 0 of 11 honest requests blocked; role-play and pressure attempts now go to the seller. Every training run is in Weights & Biases: https://wandb.ai/abhisheksoni1445-mistralfluence/kavach-guard. Details and honest limits: `ml/README.md`.
 
 ## Security model
 

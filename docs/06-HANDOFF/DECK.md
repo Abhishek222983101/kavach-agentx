@@ -66,7 +66,7 @@ Each slide has at most 5 short bullets and speaker notes of at most 40 words. Nu
 - It paid on the payment screenshot (3/3) and the unchecked photo claim (3/3)
 - Reply time: p50 1.6 s, p95 2.4 s
 
-<!-- ML_RESULTS -->
+- Trained guard (MuRIL → distilled student): catches 73% of hand-written manipulation vs 13% for rules and 7% for Meta Prompt Guard 2; 100% of eval attack messages
 
 **Speaker notes:** The strict prompt held against every word trick. It paid when it could not check evidence. Kavach checks evidence and records, so it paid nothing and blocked no honest customer. Replies took 1.6 seconds typically.
 
