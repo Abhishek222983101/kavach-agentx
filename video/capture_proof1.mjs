@@ -1,0 +1,11 @@
+import { chromium } from "/home/arch-nitro/d3coy/tessera-lab/web/node_modules/playwright-core/index.mjs";
+const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome-stable", args: ["--no-sandbox"] });
+const ctx = await b.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 2 });
+await ctx.addInitScript(() => { try { localStorage.setItem("theme", "light"); } catch {} });
+const p = await ctx.newPage();
+await p.goto("https://kavach-agentx.vercel.app/proof", { waitUntil: "load" }); await p.waitForTimeout(3500);
+const sec = p.locator("section.card", { has: p.getByRole("heading", { name: "The AI's process cannot pay anyone" }) });
+await sec.getByRole("button", { name: /^Run/ }).click(); await p.waitForTimeout(3500);
+await sec.scrollIntoViewIfNeeded(); await p.waitForTimeout(400);
+await sec.screenshot({ path: "/home/arch-nitro/kavach-agentx/video/remotion/public/shots/proof1.png" });
+await b.close(); console.log("ok");

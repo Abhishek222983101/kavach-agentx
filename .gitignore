@@ -28,3 +28,12 @@ ml/data/raw/
 ml/models/teacher*/
 ml/wandb/
 wandb/
+
+# video: dependencies, renders and raw recordings stay local
+video/remotion/node_modules/
+video/remotion/out/
+video/raw/
+video/broll/
+video/shots/
+video/vo/*_raw.mp3
+video/music.mp3

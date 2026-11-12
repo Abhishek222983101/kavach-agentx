@@ -1,0 +1,13 @@
+{
+  "name": "kavach-demo-video",
+  "private": true,
+  "scripts": { "render": "remotion render src/index.ts KavachDemo out/kavach-demo.mp4" },
+  "dependencies": {
+    "@remotion/cli": "4.0.320",
+    "@remotion/google-fonts": "4.0.320",
+    "remotion": "4.0.320",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": { "typescript": "5.8.3", "@types/react": "19.1.8" }
+}
