@@ -29,6 +29,9 @@ class WhatsAppBudget:
             """INSERT INTO usage_counters(key, n) VALUES ($1, 1)
                ON CONFLICT (key) DO UPDATE SET n = usage_counters.n + 1 RETURNING n""", KEY))
 
+    async def refund(self) -> None:
+        await self.pool.execute("UPDATE usage_counters SET n = greatest(0, n - 1) WHERE key = $1", KEY)
+
     async def allow(self) -> bool:
         return await self.used() < self.limit
 

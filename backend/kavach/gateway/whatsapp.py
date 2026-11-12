@@ -68,6 +68,8 @@ class TwilioWhatsApp:
                                    data={"From": self.sender, "To": to, "Body": text[:1500]})
             self._last = time.monotonic()
         if r.status_code >= 400:
+            if self.budget is not None:
+                await self.budget.refund()                     # Twilio refused it: it didn't cost a message
             code = r.json().get("code") if r.headers.get("content-type", "").startswith("application/json") else None
             raise RuntimeError(f"twilio {r.status_code} code={code}")   # 63015 = recipient hasn't joined the sandbox
 
@@ -114,6 +116,8 @@ async def _process_inbound(app, form: dict[str, Any]) -> None:
     frm, body, sid = form.get("From", ""), (form.get("Body") or "").strip()[:1000], form.get("MessageSid", "")
     if not frm.startswith("whatsapp:") or not sid:
         return
+    if form.get("MessageStatus") or form.get("SmsStatus") not in (None, "", "received") or frm == st.whatsapp.sender:
+        return                                     # delivery receipts and our own number are not customers
     if body.lower().startswith("join "):          # the sandbox handles joins itself
         return
     if st.whatsapp.budget is not None:            # Twilio bills inbound messages too: count them

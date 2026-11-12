@@ -224,3 +224,19 @@ async def test_whatsapp_replies_show_messages_left(chan, fake):
     await wa(c, app, cust, "namaste", "SM" + "p" * 32)
     body = to(rec, cust)[-1]
     assert "WhatsApp msgs left" in body and body.rstrip().endswith("_") and "Kavach" in body
+
+
+async def test_delivery_receipts_are_not_customers():
+    """Regression (12 Nov): Twilio status callbacks (From = our sandbox number) were answered like customer messages."""
+    from types import SimpleNamespace
+    from kavach.gateway import whatsapp as wa
+    called = []
+
+    async def handle(*a, **k):
+        called.append(a)
+    app = SimpleNamespace(state=SimpleNamespace(whatsapp=SimpleNamespace(sender="whatsapp:+14155238886"), agent=SimpleNamespace(handle=handle)))
+    for form in ({"From": "whatsapp:+14155238886", "MessageSid": "SM1", "Body": "hi"},
+                 {"From": "whatsapp:+919800000000", "MessageSid": "SM2", "MessageStatus": "delivered"},
+                 {"From": "whatsapp:+919800000000", "MessageSid": "SM3", "SmsStatus": "read"}):
+        await wa._process_inbound(app, form)
+    assert called == []
