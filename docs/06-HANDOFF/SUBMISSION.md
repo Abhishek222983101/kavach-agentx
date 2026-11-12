@@ -19,7 +19,7 @@ The portal asks for: project name, theme, one-line pitch (≤ 140 chars), descri
 | Repository | https://github.com/Abhishek222983101/kavach-agentx *(must be public before submitting, Q-12)* |
 | Live demo | https://kavach-agentx.vercel.app |
 | Demo video | TBD (YouTube unlisted or Google Drive, ≤ 3:00, viewable by anyone) |
-| Pitch deck | https://claude.ai/artifact/Eau7Bqt4hLVJJ7hycDJpQM (share it as "anyone with the link" first; it can also be exported to PDF/PPTX from the deck page) |
+| Pitch deck | https://kavach-agentx.vercel.app/deck.pdf (public PDF, 6 slides) |
 
 Pitch character count: **126** (limit 140).
 

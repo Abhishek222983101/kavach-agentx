@@ -13,7 +13,7 @@ AgentX Hackathon 2026 · Problem statement PS-04 · Team Paradigm
 | WhatsApp (Twilio sandbox) | Send `join ask-contain` to +1 415 523 8886, then chat |
 | Proof page | https://kavach-agentx.vercel.app/proof |
 | Demo video | TBD |
-| Deck | https://claude.ai/artifact/Eau7Bqt4hLVJJ7hycDJpQM |
+| Deck | https://kavach-agentx.vercel.app/deck.pdf |
 
 ## Try it in 60 seconds
 
