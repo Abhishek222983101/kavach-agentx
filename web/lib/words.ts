@@ -27,7 +27,7 @@ export const CLAIM: Record<string, string> = {
 export const FAILED: Record<string, string> = {
   ownership: "not this customer's order", state: "order isn't in a state that allows it", temporal: "outside the time window",
   monetary: "more than was paid", duplicate: "already done before", eligibility: "policy doesn't allow it for this item",
-  evidence: "no photo on file", frequency: "too many recent refunds", channel_identity: "different phone or chat than the order",
+  evidence: "the photo doesn't show the claimed damage", frequency: "too many recent refunds", channel_identity: "different phone or chat than the order",
   policy: "doesn't match the written policy", authority: "someone claimed special authority",
 };
 
@@ -39,6 +39,7 @@ const REASON: Record<string, string> = {
 };
 export function reason(r: string): string {
   if (REASON[r]) return REASON[r];
+  if (r === "missing_evidence") return "no photo on file";
   if (r.startsWith("missing_")) return FAILED[r.slice(8)] ?? "missing " + r.slice(8);
   if (FAILED[r]) return FAILED[r];
   return r.replace(/_/g, " ");
