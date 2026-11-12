@@ -272,6 +272,8 @@ class SellerCalls:
             msg = "This request was already decided. Nothing changed. Goodbye."
         elif st in ("executed", "already_executed"):
             msg = "Approved. Kavach re-checked the records and completed it. The customer has been told. Goodbye."
+        elif st == "still_held":
+            msg = "You approved, but Kavach could not re-check one record just now, so nothing was paid yet. It is in your seller console. Goodbye."
         elif st == "rejected":
             msg = "Rejected. The customer has been told politely. Goodbye."
         else:

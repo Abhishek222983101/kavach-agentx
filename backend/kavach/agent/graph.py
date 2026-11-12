@@ -547,8 +547,10 @@ def build(deps: Deps, checkpointer: Any):
             elif (res.reason or "").startswith("kill_switch"):
                 await deps.send(s["conv"], R.say("frozen", lang), trace)
             return {"result": {"status": res.status, "reason": res.reason}}
+        if d["decision"] == "approve" and v.verdict is Verdict.ESCALATE:
+            return {"result": {"status": "still_held", "reasons": v.reasons}}   # seller said yes, a record couldn't be re-read: nothing paid, no "rejected" message
         await deps.send(s["conv"], R.say("rejected", lang, what=what, oid=order["id"]), trace)
-        return {"result": {"status": "rejected", "reasons": v.reasons}}
+        return {"result": {"status": "rejected" if d["decision"] == "reject" else "void", "reasons": v.reasons}}
 
     ap = StateGraph(ApprovalState)
     ap.add_node("await_seller", await_seller)

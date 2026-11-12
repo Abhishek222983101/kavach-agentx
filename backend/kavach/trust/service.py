@@ -37,7 +37,8 @@ from kavach.trust.rules import EXPECTED_STATE, injection_flags, required_for
 def args_reason(p: ProposalIn) -> str | None:
     return (p.args or {}).get("reason")
 
-HUMAN_CLEARED = {"over_auto_limit", "over_hard_cap", "refund_frequency", "guard_flag", "instruction_in_record"}
+HUMAN_CLEARED = {"over_auto_limit", "over_hard_cap", "refund_frequency", "guard_flag", "instruction_in_record",
+                 "photo_unverified"}   # the seller looked at the photo: that is exactly what this hold asks for
 
 
 class TrustError(Exception):
